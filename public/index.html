@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Badminton Live Input</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="auth-overlay" id="authOverlay">
+    <div class="auth-modal">
+        <div class="auth-header">
+            <h2 id="authTitle">Login to Continue</h2>
+            <p id="authMessage">Enter your email and password to access the scoreboard.</p>
+        </div>
+        <div class="auth-form" id="loginForm">
+            <input type="email" id="loginEmail" placeholder="Email">
+            <input type="password" id="loginPassword" placeholder="Password">
+            <button type="button" onclick="handleLogin()">Login</button>
+            <p class="auth-switch">New user? <button type="button" onclick="showRegistration()">Register here</button></p>
+        </div>
+        <div class="auth-form hidden" id="registerForm">
+            <input type="text" id="registerUsername" placeholder="Username">
+            <input type="email" id="registerEmail" placeholder="Gmail">
+            <input type="password" id="registerPassword" placeholder="Password">
+            <button type="button" onclick="handleRegister()">Register</button>
+            <p class="auth-switch">Already registered? <button type="button" onclick="showLogin()">Login here</button></p>
+        </div>
+    </div>
+</div>
+
+<h1>🏸 Badminton Match Input</h1>
+
+<div class="container hidden" id="mainApp">
+    <div class="controls">
+        <input type="text" id="player1Name" placeholder="Player 1 Name">
+        <div class="country-selector-group">
+            <select id="player1Country" onchange="toggleAddCountryFields(1)">
+                <option value="">Select Player 1 Country</option>
+                <option value="ADD_NEW">+ Add New Country</option>
+            </select>
+            <button type="button" id="player1DeleteCountry" class="delete-country-btn" onclick="confirmDeleteCountry(1)">Delete</button>
+            <div id="player1AddCountryForm" class="add-country-form" style="display:none;">
+                <input type="text" id="player1CountryName" placeholder="Country name" />
+                <input type="text" id="player1CountryFlag" placeholder="Flag URL or emoji" />
+                <button type="button" onclick="addNewCountry(1)">Add</button>
+                <button type="button" onclick="cancelAddCountry(1)">Cancel</button>
+            </div>
+        </div>
+
+        <input type="text" id="player2Name" placeholder="Player 2 Name">
+        <div class="country-selector-group">
+            <select id="player2Country" onchange="toggleAddCountryFields(2)">
+                <option value="">Select Player 2 Country</option>
+                <option value="ADD_NEW">+ Add New Country</option>
+            </select>
+            <button type="button" id="player2DeleteCountry" class="delete-country-btn" onclick="confirmDeleteCountry(2)">Delete</button>
+            <div id="player2AddCountryForm" class="add-country-form" style="display:none;">
+                <input type="text" id="player2CountryName" placeholder="Country name" />
+                <input type="text" id="player2CountryFlag" placeholder="Flag URL or emoji" />
+                <button type="button" onclick="addNewCountry(2)">Add</button>
+                <button type="button" onclick="cancelAddCountry(2)">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="scoreboard">
+        <div class="player">
+            <h2 id="name1">Player 1</h2>
+            <div class="score" id="score1">0</div>
+            <button onclick="addPoint(1)">+1</button>
+        </div>
+
+        <div class="player">
+            <h2 id="name2">Player 2</h2>
+            <div class="score" id="score2">0</div>
+            <button onclick="addPoint(2)">+1</button>
+        </div>
+    </div>
+
+    <div class="actions">
+        <button onclick="startMatch()" id="startMatchBtn">Start Match</button>
+        <button onclick="pauseTimer()" id="pauseBtn">Pause</button>
+        <button onclick="resetMatch()">Reset</button>
+        <button onclick="broadcastState()">Broadcast Now</button>
+        <button onclick="handleLogout()" id="logoutBtn">Logout</button>
+    </div>
+
+    <div class="timer-display">
+        <strong>Match Time:</strong> <span id="matchTimer">00:00</span>
+    </div>
+
+    <div class="info">
+        <p>Open <a href="viewer.html" target="_blank">Live Display</a> in another tab for read-only broadcast mode.</p>
+        <p id="status">Status: ready to broadcast.</p>
+    </div>
+</div>
+
+<script src="js/script.js"></script>
+
+</body>
+</html>

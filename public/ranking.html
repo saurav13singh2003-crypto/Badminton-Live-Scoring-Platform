@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Badminton Match Rankings</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="viewer-page">
+
+<div class="viewer-shell">
+    <div class="viewer-top">
+        <h1>Match Rankings</h1>
+        <a href="viewer.html" class="viewer-link">Back to Live Viewer</a>
+    </div>
+
+    <div class="ranking-panel">
+        <table class="ranking-table">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Player</th>
+                    <th>Matches</th>
+                    <th>Won</th>
+                    <th>Lost</th>
+                    <th>Points</th>
+                    <th>Move</th>
+                    <th>Win %</th>
+                </tr>
+            </thead>
+            <tbody id="rankingBody">
+                <tr><td colspan="5">Loading rankings...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="js/ranking.js"></script>
+</body>
+</html>

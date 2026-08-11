@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Badminton Live Display</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="viewer-page">
+
+<div class="viewer-shell">
+    <div class="series-grid">
+        <div class="series-header"></div>
+        <div class="series-header">Game 1</div>
+        <div class="series-header">Game 2</div>
+        <div class="series-header">Game 3</div>
+
+        <div class="series-label" id="rowLabel1">Player 1</div>
+        <div class="series-chip" id="game1p1">-</div>
+        <div class="series-chip" id="game2p1">-</div>
+        <div class="series-chip" id="game3p1">-</div>
+
+        <div class="series-label" id="rowLabel2">Player 2</div>
+        <div class="series-chip" id="game1p2">-</div>
+        <div class="series-chip" id="game2p2">-</div>
+        <div class="series-chip" id="game3p2">-</div>
+        <div class="series-label duration-header">Duration</div>
+        <div class="series-chip duration-chip" id="duration1">--:--</div>
+        <div class="series-chip duration-chip" id="duration2">--:--</div>
+        <div class="series-chip duration-chip" id="duration3">--:--</div>
+    </div>
+    <div class="viewer-duration">Match Duration: <span id="matchDuration">00:00</span></div>
+
+    <div class="viewer-links">
+        <a href="history.html" target="_blank" class="viewer-link">Open Match History</a>
+        <a href="ranking.html" target="_blank" class="viewer-link">Open Match Rankings</a>
+    </div>
+</div>
+
+<script src="js/viewer.js"></script>
+
+</body>
+</html>
