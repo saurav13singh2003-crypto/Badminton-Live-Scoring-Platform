@@ -1,18 +1,18 @@
-# Badminton Live Scoring & Ranking
+# Badminton Hub
 
-A browser based badminton scoring app for running matches, tracking game scores, and reviewing player and match statistics. The application is served by a small Express server and stores match and player data in MySQL.
+Badminton Hub is a browser based badminton scoring and ranking platform. It includes a responsive dashboard, match input and scoring controls, a live broadcast display, match history, player rankings, and individual player profiles. The app uses an Express API and MySQL to persist player and match data.
 
 ## Features
 
-- Live singles scoring with player and country details
-- Match and game history, including final scores and match duration
-- Player profiles and individual player history
-- Rankings based on recorded match results
-- Viewer page for displaying the current scoreboard
-- Custom country entries
-- MySQL tables are created or updated when the server starts
-
-The app does not currently include a login or registration flow.
+- Responsive dark sports dashboard with links to each part of the app
+- Live singles scoring across best of three games, with start, pause, reset, and broadcast controls
+- Match timer that pauses at the end of each game and asks before starting the next one
+- Live viewer that reflects score updates and displays player portraits and country flags
+- Persistent player roster with database reload, country, age, height, weight, playing hand, and photo URL fields
+- Player profile pages with career statistics, profile details, and expandable match history
+- Match history and rankings with “show more” pagination
+- Shared sticky navigation and a badminton themed background across the app
+- Database schema initialization and migrations when the server starts
 
 ## Requirements
 
@@ -34,13 +34,13 @@ The app does not currently include a login or registration flow.
    npm install
    ```
 
-3. Create a MySQL database. For example, from a MySQL client:
+3. Create a MySQL database:
 
    ```sql
    CREATE DATABASE badminton_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
    ```
 
-4. Set the connection variables in a local `.env` file in the project root. `.env` is ignored by Git, so credentials stay on your machine:
+4. Add a `.env` file in the project root with your database connection settings:
 
    ```dotenv
    PORT=4000
@@ -51,7 +51,7 @@ The app does not currently include a login or registration flow.
    DB_NAME=badminton_db
    ```
 
-   `DB_PORT` defaults to `3307` in this project. Set it to your MySQL server's port (commonly `3306`) if needed. The database user needs permission to create and update tables.
+   `DB_PORT` defaults to `3307` in this project. Change it to your MySQL server's port if needed, commonly `3306`. The database user needs permission to create and update tables. Keep `.env` private; it is ignored by Git.
 
 5. Start the app:
 
@@ -59,37 +59,47 @@ The app does not currently include a login or registration flow.
    npm start
    ```
 
-   Open [http://localhost:4000](http://localhost:4000). Change `PORT` in `.env` if you want to use another port.
+   Open [http://localhost:4000](http://localhost:4000). The server requires an available MySQL database to start.
+
+For VS Code Live Server, open the project root or `public/index.html`. The root `index.html` forwards to the dashboard under `public/` so Live Server opens the app instead of showing a directory listing. API-backed features still require the Node server and MySQL to be running.
 
 ## Pages
 
-| Page | URL | Purpose |
+| Page | URL | Description |
 | --- | --- | --- |
-| Homepage | `/` | Dashboard and links to the app pages |
-| Scoreboard | `/input.html` | Set up and score a live match |
-| Viewer | `/viewer.html` | Display the current scoreboard |
-| Match history | `/history.html` | Browse completed and in progress matches |
-| Rankings | `/ranking.html` | Review player standings and records |
-| Player profiles | `/player-profile.html?player=PLAYER_NAME` | View a player's profile and expand their match history |
+| Home dashboard | `/` | Dashboard and navigation to scoring, live broadcast, history, and rankings |
+| Match input | `/input.html` | Select players, edit player details, and score a match |
+| Live Broadcast | `/viewer.html` | Read-only live scoreboard with player photos and country flags |
+| Match History | `/history.html` | Review completed and in-progress matches |
+| Rankings | `/ranking.html` | Browse player standings, records, and win rates |
+| Player profile | `/player-profile.html?player=PLAYER_NAME` | View player details, statistics, and match history |
 
-The scoreboard and viewer share the latest saved state through the server. Keep the Node server running while using the pages.
+## Match workflow
+
+1. Choose two saved players on the Match Input page, or add players and their profile details.
+2. Start the match and use the `+1` controls to update scores.
+3. At the end of a game, the timer stops. Confirm the prompt to continue to the next game, or cancel and resume later with **Start Match**.
+4. Open Live Broadcast to display the current game. Match results and player records appear in history, rankings, and player profiles.
+
+The Match Input and Live Broadcast pages share score state through browser messaging and the server's latest-state endpoint. Keep the Node server running for database persistence and cross-page updates.
 
 ## Data storage
 
-On startup, the server connects to MySQL and ensures the tables used by the application exist. Player records, matches, games, custom countries, match logs, and scoreboard state are stored in the configured database. Back up the database regularly to preserve match history.
+MySQL stores players, player profile details, countries, matches, games, match logs, and the latest scoreboard state. The server creates or updates required tables when it starts. The Match Input page can reload the roster from the database; it also keeps a browser copy available if the database cannot be reached temporarily. Back up the database regularly to preserve your records.
 
-## API
+## API overview
 
 The Express API is mounted at `/api`. Main endpoint groups include:
 
-- `GET/POST/DELETE /api/custom-countries`
-- `GET/POST /api/match-log` and `GET/POST /api/latest-state`
-- `GET/POST /api/players`, `PUT/DELETE /api/players/:id`
-- `POST /api/matches`, `POST /api/matches/:id/games`, `GET /api/matches/history`
+- `GET`, `POST`, and `DELETE /api/custom-countries`
+- `GET` and `POST /api/match-log`
+- `GET` and `POST /api/latest-state`
+- `GET` and `POST /api/players`; `PUT` and `DELETE /api/players/:id`
+- `POST /api/matches`; `POST /api/matches/:id/games`; `GET /api/matches/history`
 - `POST` or `PATCH /api/games/:id/score` and `/api/games/:id/finish`
 - `POST` or `PATCH /api/matches/:id/finish`
 
-## Tech stack
+## Technology
 
 - Node.js and Express
 - MySQL with `mysql2`
