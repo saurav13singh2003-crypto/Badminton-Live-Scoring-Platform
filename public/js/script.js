@@ -19,8 +19,59 @@ const maxGames = 3;
 const scoreTarget = 21;
 const finalPoint = 31;
 
-const API_BASE = '';
+function getApiBase() {
+    const configured = (window.__BADMINTON_API_BASE__ || '').toString().trim();
+    if (configured) {
+        return configured.replace(/\/+$/, '');
+    }
+
+    const { port, hostname } = window.location;
+    if (port && port !== '4000' && hostname !== 'localhost' && hostname !== '127.0.0.1' && hostname !== '0.0.0.0') {
+        return 'http://localhost:4000';
+    }
+
+    if (port && port !== '4000') {
+        return 'http://localhost:4000';
+    }
+
+    return '';
+}
+
+const API_BASE = getApiBase();
 let customCountries = [];
+let selectedRegistrationType = 'viewer';
+
+const defaultCountries = [
+    'India', 'China', 'Indonesia', 'Malaysia', 'South Korea', 'Japan', 'England',
+    'Thailand', 'Denmark', 'Brazil', 'United States', 'France', 'Spain', 'Germany', 'Australia'
+];
+
+const defaultCountryFlags = {
+    India: '🇮🇳',
+    China: '🇨🇳',
+    Indonesia: '🇮🇩',
+    Malaysia: '🇲🇾',
+    'South Korea': '🇰🇷',
+    Japan: '🇯🇵',
+    England: '🏴',
+    Thailand: '🇹🇭',
+    Denmark: '🇩🇰',
+    Brazil: '🇧🇷',
+    'United States': '🇺🇸',
+    France: '🇫🇷',
+    Spain: '🇪🇸',
+    Germany: '🇩🇪',
+    Australia: '🇦🇺'
+};
+
+function resolveCountryFlag(countryName) {
+    if (!countryName) return '';
+    const cleanName = String(countryName).trim();
+    if (!cleanName) return '';
+    const customMatch = (customCountries || []).find((country) => country.name === cleanName);
+    if (customMatch && customMatch.flag) return customMatch.flag;
+    return defaultCountryFlags[cleanName] || '';
+}
 
 const countryColors = {
     india: '#0047ab',
@@ -60,89 +111,8 @@ function getDistinctColors(color1, color2) {
     return [color1, '#64748b'];
 }
 
-function showLogin() {
-    document.getElementById('loginForm').classList.remove('hidden');
-    document.getElementById('registerForm').classList.add('hidden');
-    document.getElementById('authTitle').innerText = 'Login to Continue';
-    document.getElementById('authMessage').innerText = 'Enter your email and password to access the scoreboard.';
-}
-
-function showRegistration() {
-    document.getElementById('loginForm').classList.add('hidden');
-    document.getElementById('registerForm').classList.remove('hidden');
-    document.getElementById('authTitle').innerText = 'Register New User';
-    document.getElementById('authMessage').innerText = 'Create an account to access the scoreboard.';
-}
-
-function lockApp() {
-    document.getElementById('mainApp').classList.add('hidden');
-    document.getElementById('authOverlay').classList.remove('hidden');
-}
-
-async function unlockApp(username) {
-    document.getElementById('mainApp').classList.remove('hidden');
-    document.getElementById('authOverlay').classList.add('hidden');
-    await populateAllCountryDropdowns();
-    sendStatus(`Logged in as ${username}`);
-}
-
-async function handleRegister() {
-    const username = document.getElementById('registerUsername').value.trim();
-    const email = document.getElementById('registerEmail').value.trim();
-    const password = document.getElementById('registerPassword').value.trim();
-
-    if (!username || !email || !password) {
-        sendStatus('Please enter username, email, and password.');
-        return;
-    }
-
-    let existing = null;
-    try {
-        existing = await findUserByEmail(email);
-    } catch (err) {
-        // continue with registration if API user lookup fails
-    }
-    if (existing) {
-        sendStatus('This email is already registered. Please login with your existing account.');
-        showLogin();
-        return;
-    }
-
-    try {
-        const user = await registerUser(username, email, password);
-        sendStatus('Registration successful. Please login now.');
-        document.getElementById('registerUsername').value = '';
-        document.getElementById('registerEmail').value = '';
-        document.getElementById('registerPassword').value = '';
-        showLogin();
-    } catch (err) {
-        sendStatus(err.message || 'Registration failed.');
-    }
-}
-
-async function handleLogin() {
-    const email = document.getElementById('loginEmail').value.trim();
-    const password = document.getElementById('loginPassword').value.trim();
-
-    if (!email || !password) {
-        sendStatus('Enter email and password to login.');
-        return;
-    }
-
-    try {
-        const user = await loginUser(email, password);
-        setCurrentUser(user);
-        document.getElementById('loginEmail').value = '';
-        document.getElementById('loginPassword').value = '';
-        await unlockApp(user.username);
-    } catch (err) {
-        if (err.message === 'User not found' || err.message === 'User not found') {
-            sendStatus('No account found for this email. Please register first.');
-            showRegistration();
-        } else {
-            sendStatus(err.message || 'Invalid email or password.');
-        }
-    }
+function isCurrentUserAdmin() {
+    return true;
 }
 
 function formatTime(seconds) {
@@ -183,26 +153,36 @@ function resetTimer() {
     updateTimerDisplay();
 }
 
-const USERS_KEY = 'badminton-registered-users';
 const CURRENT_USER_KEY = 'badminton-current-user';
 const BASE_MATCH_LOG_KEY = 'badminton-match-log';
 const BASE_STATE_KEY = 'badminton-latest-state';
 const BASE_CUSTOM_COUNTRY_KEY = 'custom-countries';
 
 async function apiRequest(path, options = {}) {
+    const headers = {
+        'Content-Type': 'application/json'
+    };
     const request = {
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers,
         ...options
     };
     const response = await fetch(`${API_BASE}${path}`, request);
     if (!response.ok) {
         const errorBody = await response.json().catch(() => null);
-        const message = errorBody?.error || response.statusText || 'Request failed';
+        const message = errorBody?.message || errorBody?.error || response.statusText || 'Request failed';
         throw new Error(message);
     }
-    return response.json();
+
+    const text = await response.text();
+    if (!text) {
+        return null;
+    }
+
+    try {
+        return JSON.parse(text);
+    } catch (err) {
+        return text;
+    }
 }
 
 function getCurrentUser() {
@@ -219,24 +199,8 @@ function setCurrentUser(user) {
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
 }
 
-function clearCurrentUser() {
-    localStorage.removeItem(CURRENT_USER_KEY);
-}
-
-async function handleLogout() {
-    stopTimer();
-    clearCurrentUser();
-    lockApp();
-    showLogin();
-    sendStatus('Logged out successfully.');
-}
-
 function getNamespacedKey(baseKey) {
-    const user = getCurrentUser();
-    if (!user || !user.email) {
-        return baseKey;
-    }
-    return `${baseKey}-${user.email.toLowerCase()}`;
+    return baseKey;
 }
 
 function loadNamespaced(key) {
@@ -253,145 +217,90 @@ function saveNamespaced(key, value) {
     localStorage.setItem(getNamespacedKey(key), JSON.stringify(value));
 }
 
-async function findUserByEmail(email) {
-    if (!email) {
-        return null;
-    }
-    try {
-        const data = await apiRequest(`/api/users?email=${encodeURIComponent(email)}`);
-        return data.user || null;
-    } catch (err) {
-        const users = loadNamespaced(USERS_KEY);
-        return users.find((user) => user.email.toLowerCase() === email.toLowerCase()) || null;
-    }
-}
-
-async function registerUser(username, email, password) {
-    try {
-        const data = await apiRequest('/api/register', {
-            method: 'POST',
-            body: JSON.stringify({ username, email, password })
-        });
-        return data.user;
-    } catch (err) {
-        if (err.message === 'Email already registered') {
-            throw err;
-        }
-        const users = loadNamespaced(USERS_KEY);
-        users.push({ username, email, password });
-        saveNamespaced(USERS_KEY, users);
-        return { username, email };
-    }
-}
-
-async function loginUser(email, password) {
-    try {
-        const data = await apiRequest('/api/login', {
-            method: 'POST',
-            body: JSON.stringify({ email, password })
-        });
-        return data.user;
-    } catch (err) {
-        const users = loadNamespaced(USERS_KEY);
-        const user = users.find((item) => item.email.toLowerCase() === email.toLowerCase());
-        if (user && user.password === password) {
-            return { username: user.username, email: user.email };
-        }
-        throw err;
-    }
-}
-
 async function loadMatchLog() {
-    const user = getCurrentUser();
-    if (!user?.email) {
-        return loadNamespaced(BASE_MATCH_LOG_KEY);
-    }
     try {
-        const data = await apiRequest(`/api/match-log?email=${encodeURIComponent(user.email)}`);
-        return data.log || [];
+        const data = await apiRequest('/api/matches/history');
+        const log = Array.isArray(data?.log) ? data.log : [];
+        if (log.length) {
+            saveNamespaced(BASE_MATCH_LOG_KEY, log);
+            return log;
+        }
     } catch (err) {
-        return loadNamespaced(BASE_MATCH_LOG_KEY);
+        console.warn('Failed to load match log from API, falling back to browser storage', err);
     }
+
+    const stored = loadNamespaced(BASE_MATCH_LOG_KEY);
+    return Array.isArray(stored) ? stored : [];
 }
 
 async function saveMatchLog(log) {
-    const user = getCurrentUser();
-    if (!user?.email) {
-        saveNamespaced(BASE_MATCH_LOG_KEY, log);
-        return;
-    }
     try {
-        await apiRequest('/api/match-log', {
-            method: 'POST',
-            body: JSON.stringify({ email: user.email, log })
-        });
+        await apiRequest('/api/match-log', { method: 'POST', body: JSON.stringify({ log }) });
     } catch (err) {
-        saveNamespaced(BASE_MATCH_LOG_KEY, log);
+        console.warn('Could not save match log to API; saving locally only', err);
     }
+    saveNamespaced(BASE_MATCH_LOG_KEY, log);
 }
 
 async function loadCustomCountries() {
-    const user = getCurrentUser();
-    if (!user?.email) {
-        return loadNamespaced(BASE_CUSTOM_COUNTRY_KEY);
-    }
     try {
-        const data = await apiRequest(`/api/custom-countries?email=${encodeURIComponent(user.email)}`);
-        return data.countries || [];
+        const data = await apiRequest('/api/custom-countries');
+        const countries = Array.isArray(data?.countries) ? data.countries : [];
+        customCountries = countries;
+        saveNamespaced(BASE_CUSTOM_COUNTRY_KEY, countries);
+        return countries;
     } catch (err) {
-        return loadNamespaced(BASE_CUSTOM_COUNTRY_KEY);
+        console.warn('Failed to load custom countries from server, falling back to browser storage', err);
     }
+
+    try {
+        const saved = loadNamespaced(BASE_CUSTOM_COUNTRY_KEY);
+        if (Array.isArray(saved) && saved.length > 0) {
+            customCountries = saved;
+            return saved;
+        }
+    } catch (err) {
+        console.warn('Failed to load stored custom countries', err);
+    }
+
+    return [];
 }
 
 async function saveCustomCountry(name, flag) {
-    const user = getCurrentUser();
     const countries = await loadCustomCountries();
-    if (!countries.some((c) => c.name.toLowerCase() === name.toLowerCase())) {
-        countries.push({ name, flag });
-    }
-    customCountries = countries;
-    if (!user?.email) {
-        saveNamespaced(BASE_CUSTOM_COUNTRY_KEY, countries);
-        return;
-    }
-    try {
-        await apiRequest('/api/custom-countries', {
-            method: 'POST',
-            body: JSON.stringify({ email: user.email, name, flag })
-        });
-    } catch (err) {
-        saveNamespaced(BASE_CUSTOM_COUNTRY_KEY, countries);
-    }
+    const updated = countries.some((c) => c.name.toLowerCase() === name.toLowerCase())
+        ? countries
+        : [...countries, { name, flag }];
+    customCountries = updated;
+    saveNamespaced(BASE_CUSTOM_COUNTRY_KEY, updated);
+    await apiRequest('/api/custom-countries', { method: 'POST', body: JSON.stringify({ name, flag }) });
+    return updated;
 }
 
 async function saveLatestState(state) {
-    const user = getCurrentUser();
-    if (!user?.email) {
-        localStorage.setItem(getNamespacedKey(BASE_STATE_KEY), JSON.stringify(state));
-        return;
-    }
-    try {
-        await apiRequest('/api/latest-state', {
-            method: 'POST',
-            body: JSON.stringify({ email: user.email, state })
-        });
-    } catch (err) {
-        localStorage.setItem(getNamespacedKey(BASE_STATE_KEY), JSON.stringify(state));
-    }
+    await apiRequest('/api/latest-state', { method: 'POST', body: JSON.stringify({ state }) });
 }
 
 async function loadLatestState() {
-    const user = getCurrentUser();
-    if (!user?.email) {
-        const saved = localStorage.getItem(getNamespacedKey(BASE_STATE_KEY));
-        return saved ? JSON.parse(saved) : null;
+    try {
+        const data = await apiRequest('/api/latest-state');
+        if (data && data.state != null) {
+            saveNamespaced(BASE_STATE_KEY, data.state);
+            return data.state;
+        }
+    } catch (err) {
+        console.warn('Failed to load latest state from API, falling back to browser storage', err);
+    }
+
+    const saved = localStorage.getItem(getNamespacedKey(BASE_STATE_KEY));
+    if (!saved) {
+        return null;
     }
     try {
-        const data = await apiRequest(`/api/latest-state?email=${encodeURIComponent(user.email)}`);
-        return data.state || null;
+        return JSON.parse(saved);
     } catch (err) {
-        const saved = localStorage.getItem(getNamespacedKey(BASE_STATE_KEY));
-        return saved ? JSON.parse(saved) : null;
+        console.error('Failed to parse saved state', err);
+        return null;
     }
 }
 
@@ -453,34 +362,225 @@ function populateCustomCountriesInDropdown(select, countries) {
     });
 }
 
+async function loadPlayers() {
+    try {
+        const data = await apiRequest('/api/players');
+        const players = Array.isArray(data.players) ? data.players : [];
+        const playerSelects = [
+            document.getElementById('player1Select'),
+            document.getElementById('player2Select')
+        ];
+
+        playerSelects.forEach((select) => {
+            if (!select) return;
+            const existingValue = select.value;
+            select.innerHTML = '<option value="">Select Player</option><option value="ADD_NEW">+ Add New Player</option>';
+            players.forEach((player) => {
+                const option = document.createElement('option');
+                option.value = player.name;
+                option.textContent = player.player_id ? `${player.name} (${player.player_id})` : player.name;
+                select.appendChild(option);
+            });
+            if (existingValue && existingValue !== 'ADD_NEW' && players.some((player) => player.name === existingValue)) {
+                select.value = existingValue;
+            }
+        });
+
+        const player1Select = document.getElementById('player1Select');
+        const player2Select = document.getElementById('player2Select');
+        if (player1Select) syncSelectedPlayerId(1);
+        if (player2Select) syncSelectedPlayerId(2);
+
+        return players;
+    } catch (err) {
+        console.error('Failed to load players from the database', err);
+        sendStatus(`Could not load players from the database: ${err.message}`);
+        return null;
+    }
+}
+
+function toggleAddPlayerFields(player) {
+    const select = document.getElementById(`player${player}Select`);
+    const form = document.getElementById(`player${player}AddPlayerForm`);
+    const input = document.getElementById(`player${player}NewName`);
+    if (select && form) {
+        const shouldShow = select.value === 'ADD_NEW';
+        form.style.display = shouldShow ? 'block' : 'none';
+        if (shouldShow && input) {
+            input.focus();
+        }
+    }
+}
+
+function cancelAddPlayer(player) {
+    const select = document.getElementById(`player${player}Select`);
+    const form = document.getElementById(`player${player}AddPlayerForm`);
+    const input = document.getElementById(`player${player}NewName`);
+    const idInput = document.getElementById(`player${player}NewPlayerId`);
+    if (select) select.value = '';
+    if (form) form.style.display = 'none';
+    if (input) input.value = '';
+    if (idInput) idInput.value = '';
+}
+
+async function deleteSelectedPlayer(player) {
+    const select = document.getElementById(`player${player}Select`);
+    const selectedName = select?.value?.trim();
+    if (!selectedName || selectedName === 'ADD_NEW') {
+        alert('Please select a player to delete.');
+        return;
+    }
+
+    if (!confirm(`Delete player "${selectedName}" permanently from the database?`)) {
+        return;
+    }
+
+    try {
+        const data = await apiRequest('/api/players');
+        const players = Array.isArray(data.players) ? data.players : [];
+        const target = players.find((playerEntry) => playerEntry.name.toLowerCase() === selectedName.toLowerCase());
+
+        if (!target) {
+            throw new Error('Player not found in database.');
+        }
+
+        await apiRequest(`/api/players/${target.id}`, {
+            method: 'DELETE'
+        });
+
+        await loadPlayers();
+        if (select) select.value = '';
+        sendStatus(`Deleted player ${selectedName} from the database.`);
+    } catch (err) {
+        sendStatus(`Failed to delete player: ${err.message || 'server request failed'}`);
+    }
+}
+
+async function syncSelectedPlayerId(player) {
+    const select = document.getElementById(`player${player}Select`);
+    const input = document.getElementById(`player${player}PlayerId`);
+    const selectedName = select?.value?.trim();
+    if (!input || !selectedName || selectedName === 'ADD_NEW' || !selectedName) {
+        return;
+    }
+
+    try {
+        const data = await apiRequest('/api/players');
+        const players = Array.isArray(data.players) ? data.players : [];
+        const selectedPlayer = players.find((entry) => entry.name.toLowerCase() === selectedName.toLowerCase());
+        if (selectedPlayer) {
+            input.value = selectedPlayer.player_id || '';
+        }
+    } catch (err) {
+        console.warn('Failed to sync selected player ID', err);
+    }
+}
+
+async function savePlayerId(player) {
+    const select = document.getElementById(`player${player}Select`);
+    const input = document.getElementById(`player${player}PlayerId`);
+    const selectedName = select?.value?.trim();
+    const playerId = input?.value.trim();
+
+    if (!selectedName || selectedName === 'ADD_NEW') {
+        alert('Please select a player before assigning a Player ID.');
+        return;
+    }
+
+    if (!playerId) {
+        alert('Please enter a Player ID value before saving.');
+        return;
+    }
+
+    try {
+        const data = await apiRequest('/api/players');
+        const players = Array.isArray(data.players) ? data.players : [];
+        const target = players.find((entry) => entry.name.toLowerCase() === selectedName.toLowerCase());
+
+        if (!target) {
+            throw new Error('Selected player was not found in the database.');
+        }
+
+        const payload = { name: target.name, player_id: playerId, country: target.country, flag: target.flag };
+        await apiRequest(`/api/players/${target.id}`, { method: 'PUT', body: JSON.stringify(payload) });
+        await loadPlayers();
+        if (input) input.value = playerId;
+        sendStatus(`Saved Player ID ${playerId} for ${selectedName}.`);
+    } catch (err) {
+        sendStatus(`Failed to save Player ID: ${err.message || 'server request failed'}`);
+    }
+}
+
+async function addNewPlayer(player) {
+    const input = document.getElementById(`player${player}NewName`);
+    const idInput = document.getElementById(`player${player}NewPlayerId`);
+    const select = document.getElementById(`player${player}Select`);
+    const name = input?.value.trim();
+    if (!name) {
+        alert('Please enter a player name.');
+        return;
+    }
+
+    try {
+        const data = await apiRequest('/api/players', {
+            method: 'POST',
+            body: JSON.stringify({ name, player_id: idInput?.value.trim() || null })
+        });
+        await loadPlayers();
+        if (select && data.player?.name) {
+            select.value = data.player.name;
+        }
+        if (input) input.value = '';
+        if (idInput) idInput.value = '';
+        const form = document.getElementById(`player${player}AddPlayerForm`);
+        if (form) form.style.display = 'none';
+        sendStatus(`Added player ${data.player.name}.`);
+    } catch (err) {
+        sendStatus(`Failed to add player: ${err.message || 'server request failed'}`);
+    }
+}
+
 async function populateAllCountryDropdowns() {
     const select1 = document.getElementById('player1Country');
     const select2 = document.getElementById('player2Country');
     customCountries = await loadCustomCountries();
-    populateCustomCountriesInDropdown(select1, customCountries);
-    populateCustomCountriesInDropdown(select2, customCountries);
+
+    const buildOptions = (select) => {
+        if (!select) return;
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = 'Select Country';
+        select.innerHTML = '';
+        select.appendChild(defaultOption);
+
+        for (const country of defaultCountries) {
+            const option = document.createElement('option');
+            option.value = country;
+            option.textContent = country;
+            select.appendChild(option);
+        }
+
+        const addNewOption = document.createElement('option');
+        addNewOption.value = 'ADD_NEW';
+        addNewOption.textContent = '+ Add New Country';
+        select.appendChild(addNewOption);
+
+        populateCustomCountriesInDropdown(select, customCountries);
+    };
+
+    buildOptions(select1);
+    buildOptions(select2);
 }
 
 async function deleteCustomCountryByName(name) {
     if (!name) return false;
-    const user = getCurrentUser();
     const countries = await loadCustomCountries();
     const exists = countries.some((c) => c.name.toLowerCase() === name.toLowerCase());
     if (!exists) return false;
     const updated = countries.filter((c) => c.name.toLowerCase() !== name.toLowerCase());
     customCountries = updated;
-    if (!user?.email) {
-        saveNamespaced(BASE_CUSTOM_COUNTRY_KEY, updated);
-    } else {
-        try {
-            await apiRequest('/api/custom-countries', {
-                method: 'DELETE',
-                body: JSON.stringify({ email: user.email, name })
-            });
-        } catch (err) {
-            saveNamespaced(BASE_CUSTOM_COUNTRY_KEY, updated);
-        }
-    }
+    saveNamespaced(BASE_CUSTOM_COUNTRY_KEY, updated);
+    await apiRequest('/api/custom-countries', { method: 'DELETE', body: JSON.stringify({ name }) });
     await populateAllCountryDropdowns();
     return true;
 }
@@ -533,6 +633,7 @@ function cancelAddCountry(player) {
 async function addNewCountry(player) {
     const nameInput = document.getElementById(`player${player}CountryName`);
     const flagInput = document.getElementById(`player${player}CountryFlag`);
+    const form = document.getElementById(`player${player}AddCountryForm`);
     const name = nameInput?.value.trim();
     const flag = flagInput?.value.trim();
     if (!name || !flag) {
@@ -542,8 +643,12 @@ async function addNewCountry(player) {
     await saveCustomCountry(name, flag);
     await populateAllCountryDropdowns();
     const select = document.getElementById(`player${player}Country`);
-    if (select) select.value = name;
-    cancelAddCountry(player);
+    if (select) {
+        select.value = name;
+    }
+    if (form) form.style.display = 'none';
+    if (nameInput) nameInput.value = '';
+    if (flagInput) flagInput.value = '';
 }
 
 function applyPlayerColors(state) {
@@ -567,24 +672,16 @@ function applyPlayerColors(state) {
 }
 
 async function init() {
+    setCurrentUser({ role: 'admin', username: 'Admin' });
+    document.getElementById('mainApp')?.classList.remove('hidden');
+    const players = await loadPlayers();
     await populateAllCountryDropdowns();
     resetMatchState(false);
     channel = createChannel();
-
     const latestState = await loadLatestState();
-    if (latestState) {
-        updateDisplay(latestState);
-    }
-
+    if (latestState) updateDisplay(latestState);
     updateDisplay();
-    const currentUser = getCurrentUser();
-    lockApp();
-
-    if (currentUser) {
-        await unlockApp(currentUser.username);
-    } else {
-        showLogin();
-    }
+    if (players !== null) sendStatus('Ready to broadcast.');
 }
 
 function createChannel() {
@@ -605,18 +702,14 @@ function getState() {
     const player2CountrySelect = document.getElementById('player2Country');
     const player1Country = player1CountrySelect?.value.trim() || '';
     const player2Country = player2CountrySelect?.value.trim() || '';
-    
-    const countries = customCountries || [];
-    const player1CountryData = countries.find((c) => c.name === player1Country);
-    const player2CountryData = countries.find((c) => c.name === player2Country);
 
     return {
         player1: document.getElementById('name1').innerText,
         player2: document.getElementById('name2').innerText,
         player1Country,
-        player1CountryFlag: player1CountryData?.flag || '',
+        player1CountryFlag: resolveCountryFlag(player1Country),
         player2Country,
-        player2CountryFlag: player2CountryData?.flag || '',
+        player2CountryFlag: resolveCountryFlag(player2Country),
         score1,
         score2,
         currentGame,
@@ -701,10 +794,8 @@ function sendStatus(message) {
 
 async function broadcastState() {
     const state = getState();
-    const currentUser = getCurrentUser();
-    const userEmail = currentUser?.email?.toLowerCase() || null;
     if (channel) {
-        channel.postMessage({ type: 'state', payload: state, user: userEmail });
+        channel.postMessage({ type: 'state', payload: state });
         sendStatus('Status: broadcast sent.');
     } else {
         localStorage.setItem(getNamespacedKey(BASE_STATE_KEY), JSON.stringify(state));
@@ -727,50 +818,45 @@ window.addEventListener('storage', (event) => {
 });
 
 async function startMatch() {
-    // Prevent starting match if both countries are not selected
+    const player1Select = document.getElementById('player1Select');
+    const player2Select = document.getElementById('player2Select');
+    const player1Name = player1Select?.value?.trim();
+    const player2Name = player2Select?.value?.trim();
     const player1Country = document.getElementById('player1Country')?.value.trim();
     const player2Country = document.getElementById('player2Country')?.value.trim();
+
+    if (!player1Name || !player2Name || player1Name === 'ADD_NEW' || player2Name === 'ADD_NEW') {
+        sendStatus('Please select both players before starting the match.');
+        return;
+    }
     if (!player1Country || !player2Country) {
         sendStatus('Please select both countries before starting the match.');
         return;
     }
 
-    // If timer is running, do nothing (already started or resumed)
     if (timerInterval) {
         sendStatus('Timer is already running.');
         return;
     }
 
-    // If matchSeconds is 0, this is a new match, so reset state and names
     if (matchSeconds === 0) {
         resetMatchState(false);
 
-        const p1 = document.getElementById('player1Name').value.trim();
-        const p2 = document.getElementById('player2Name').value.trim();
-
-        if (p1 !== '') {
-            document.getElementById('name1').innerText = p1;
-        }
-        if (p2 !== '') {
-            document.getElementById('name2').innerText = p2;
-        }
+        document.getElementById('name1').innerText = player1Name;
+        document.getElementById('name2').innerText = player2Name;
 
         updateDisplay();
 
-        // create match on server (best-effort). include country flags for custom entries if available
         try {
-            const countries = customCountries || [];
-            const p1Country = document.getElementById('player1Country')?.value?.trim() || '';
-            const p2Country = document.getElementById('player2Country')?.value?.trim() || '';
-            const p1Flag = (countries.find((c) => c.name === p1Country) || {}).flag || '';
-            const p2Flag = (countries.find((c) => c.name === p2Country) || {}).flag || '';
+            const p1Flag = resolveCountryFlag(player1Country);
+            const p2Flag = resolveCountryFlag(player2Country);
             const resp = await apiRequest('/api/matches', {
                 method: 'POST',
                 body: JSON.stringify({
-                    player1Name: document.getElementById('name1').innerText,
-                    player2Name: document.getElementById('name2').innerText,
-                    player1Country: p1Country,
-                    player2Country: p2Country,
+                    player1Name,
+                    player2Name,
+                    player1Country,
+                    player2Country,
                     player1CountryFlag: p1Flag,
                     player2CountryFlag: p2Flag
                 })
@@ -781,10 +867,10 @@ async function startMatch() {
             player2DbId = resp.player2Id;
             sendStatus('Match created on server.');
         } catch (err) {
-            console.warn('Failed to create match on server:', err.message || err);
+            sendStatus(`Match was not started: ${err.message || 'server request failed'}`);
+            return;
         }
     }
-    // Start or resume timer
     startTimer();
     broadcastState();
 }
@@ -809,30 +895,24 @@ async function addPoint(player) {
         return;
     }
 
-    if (player === 1) {
-        score1++;
+    if (!currentGameId) {
+        sendStatus('No active server game. Start a match first.');
+        return;
     }
-    if (player === 2) {
-        score2++;
+    try {
+        const resp = await apiRequest(`/api/games/${currentGameId}/score`, {
+            method: 'PATCH',
+            body: JSON.stringify({ player })
+        });
+        score1 = resp.score1;
+        score2 = resp.score2;
+    } catch (err) {
+        sendStatus(`Score was not saved: ${err.message || 'server request failed'}`);
+        return;
     }
-
     currentServer = player;
     updateDisplay();
     await checkWinner();
-    // update server-side game score (best-effort)
-    if (currentGameId) {
-        try {
-            const resp = await apiRequest(`/api/games/${currentGameId}/score`, {
-                method: 'PATCH',
-                body: JSON.stringify({ player })
-            });
-            score1 = resp.score1;
-            score2 = resp.score2;
-            updateDisplay();
-        } catch (err) {
-            console.warn('Failed to update game score on server:', err.message || err);
-        }
-    }
     await broadcastState();
 }
 
@@ -921,6 +1001,10 @@ async function finishGame(winner) {
 }
 
 function resetMatch() {
+    if (!isCurrentUserAdmin()) {
+        sendStatus('Admin access required to reset a match.');
+        return;
+    }
     resetMatchState(false);
     updateDisplay();
     broadcastState();

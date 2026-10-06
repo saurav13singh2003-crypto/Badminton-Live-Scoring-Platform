@@ -1,7 +1,21 @@
 let channel = null;
 const scoreTarget = 21;
 const finalPoint = 31;
-const API_BASE = '';
+function getApiBase() {
+    const configured = (window.__BADMINTON_API_BASE__ || '').toString().trim();
+    if (configured) {
+        return configured.replace(/\/+$/, '');
+    }
+
+    const { port } = window.location;
+    if (port && port !== '4000') {
+        return 'http://localhost:4000';
+    }
+
+    return '';
+}
+
+const API_BASE = getApiBase();
 const CURRENT_USER_KEY = 'badminton-current-user';
 const BASE_STATE_KEY = 'badminton-latest-state';
 
@@ -36,26 +50,19 @@ async function apiRequest(path, options = {}) {
 }
 
 async function loadLatestState() {
-    const user = getCurrentUser();
-    if (!user?.email) {
-        const saved = localStorage.getItem(getNamespacedKey(BASE_STATE_KEY));
-        return saved ? JSON.parse(saved) : null;
-    }
     try {
-        const data = await apiRequest(`/api/latest-state?email=${encodeURIComponent(user.email)}`);
+        const data = await apiRequest('/api/latest-state');
         return data.state || null;
-    } catch (err) {
-        const saved = localStorage.getItem(getNamespacedKey(BASE_STATE_KEY));
-        return saved ? JSON.parse(saved) : null;
-    }
+    } catch (err) { return null; }
 }
 
 async function initViewer() {
+    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify({ role: 'admin', username: 'Admin' }));
     channel = createChannel();
     const savedState = await loadLatestState();
     if (savedState) {
         try {
-            updateDisplay(JSON.parse(savedState));
+            updateDisplay(typeof savedState === 'string' ? JSON.parse(savedState) : savedState);
             setStatus('Live display restored from last broadcast.');
             return;
         } catch (err) {
@@ -71,12 +78,8 @@ function createChannel() {
         const bc = new BroadcastChannel('badminton-scoreboard');
         bc.onmessage = (event) => {
             if (event.data && event.data.type === 'state') {
-                const currentUser = getCurrentUser();
-                const allowedUser = currentUser?.email?.toLowerCase() || null;
-                if (event.data.user === allowedUser) {
-                    updateDisplay(event.data.payload);
-                    setStatus('Live score updated.');
-                }
+                updateDisplay(event.data.payload);
+                setStatus('Live score updated.');
             }
         };
         return bc;

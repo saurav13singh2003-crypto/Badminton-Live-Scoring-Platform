@@ -9,6 +9,31 @@ body{
     margin:auto;
 }
 
+.role-banner {
+    margin: 16px auto 0;
+    padding: 10px 16px;
+    border-radius: 10px;
+    width: fit-content;
+    font-weight: 700;
+}
+
+.role-banner.admin-mode {
+    background: #d1f7dc;
+    color: #166534;
+    border: 1px solid #16a34a;
+}
+
+.role-banner.view-only {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+}
+
+.disabled-control {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
 .scoreboard{
     display:flex;
     justify-content:space-around;
@@ -37,6 +62,22 @@ button{
 
 .hidden {
     display: none !important;
+}
+
+.account-type-picker {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.account-type {
+    flex: 1;
+    opacity: 0.7;
+}
+
+.account-type.selected {
+    opacity: 1;
+    outline: 2px solid #ff8b00;
 }
 
 .auth-overlay {
@@ -127,6 +168,21 @@ button{
 
 .country-selector-group {
     margin: 6px 0;
+}
+
+.player-id-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0;
+}
+
+.player-id-row input {
+    width: 180px;
+    padding: 10px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
 }
 
 .add-country-form {
@@ -236,6 +292,20 @@ button{
     margin-left: 6px;
     font-size: 18px;
     vertical-align: middle;
+}
+
+.player-history-link {
+    color: #7dd3fc;
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.player-history-link:hover {
+    text-decoration: underline;
+}
+
+.player-history-link:visited {
+    color: #a5b4fc;
 }
 
 .movement-up {

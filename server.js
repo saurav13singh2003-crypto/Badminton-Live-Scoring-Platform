@@ -1,13 +1,8 @@
 const path = require('path');
-const dotenvResult = require('dotenv').config({ path: path.resolve(__dirname, '.env'), override: true });
-console.log('dotenv loaded:', dotenvResult.error ? 'false' : 'true', 'path:', path.resolve(__dirname, '.env'));
-console.log('dotenv parsed keys:', dotenvResult.parsed ? Object.keys(dotenvResult.parsed) : []);
-console.log('process.env DB_PASSWORD undefined?', process.env.DB_PASSWORD === undefined);
-console.log('process.env DB_PASSWORD empty string?', process.env.DB_PASSWORD === '');
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
 const { connectDatabase } = require('./database/db');
-const authRoutes = require('./routes/authRoutes');
 const matchRoutes = require('./routes/matchRoutes');
 
 const app = express();
@@ -15,9 +10,17 @@ const port = process.env.PORT || 4000;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: 0,
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('.js') || filePath.endsWith('.css') || filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 
-app.use('/api', authRoutes);
 app.use('/api', matchRoutes);
 
 app.get('*', (req, res) => {

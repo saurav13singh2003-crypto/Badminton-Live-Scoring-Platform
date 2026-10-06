@@ -6,33 +6,25 @@
 </head>
 <body>
 
-<div class="auth-overlay" id="authOverlay">
-    <div class="auth-modal">
-        <div class="auth-header">
-            <h2 id="authTitle">Login to Continue</h2>
-            <p id="authMessage">Enter your email and password to access the scoreboard.</p>
-        </div>
-        <div class="auth-form" id="loginForm">
-            <input type="email" id="loginEmail" placeholder="Email">
-            <input type="password" id="loginPassword" placeholder="Password">
-            <button type="button" onclick="handleLogin()">Login</button>
-            <p class="auth-switch">New user? <button type="button" onclick="showRegistration()">Register here</button></p>
-        </div>
-        <div class="auth-form hidden" id="registerForm">
-            <input type="text" id="registerUsername" placeholder="Username">
-            <input type="email" id="registerEmail" placeholder="Gmail">
-            <input type="password" id="registerPassword" placeholder="Password">
-            <button type="button" onclick="handleRegister()">Register</button>
-            <p class="auth-switch">Already registered? <button type="button" onclick="showLogin()">Login here</button></p>
-        </div>
-    </div>
-</div>
-
-<h1>🏸 Badminton Match Input</h1>
+<h1>Badminton Match Input</h1>
 
 <div class="container hidden" id="mainApp">
+        <div class="role-banner hidden" id="roleBanner"></div>
     <div class="controls">
-        <input type="text" id="player1Name" placeholder="Player 1 Name">
+        <div class="player-selector-group">
+            <select id="player1Select" onchange="toggleAddPlayerFields(1); syncSelectedPlayerId(1)">
+                <option value="">Select Player 1</option>
+                <option value="ADD_NEW">+ Add New Player</option>
+            </select>
+            <button type="button" onclick="deleteSelectedPlayer(1)">Delete Player</button>
+            <div id="player1AddPlayerForm" class="add-country-form" style="display:none;">
+                <input type="text" id="player1NewName" placeholder="New Player 1 Name" />
+                <input type="text" id="player1NewPlayerId" placeholder="Player 1 ID" />
+                <button type="button" onclick="addNewPlayer(1)">Add Player</button>
+                <button type="button" onclick="cancelAddPlayer(1)">Cancel</button>
+            </div>
+        </div>
+
         <div class="country-selector-group">
             <select id="player1Country" onchange="toggleAddCountryFields(1)">
                 <option value="">Select Player 1 Country</option>
@@ -47,7 +39,20 @@
             </div>
         </div>
 
-        <input type="text" id="player2Name" placeholder="Player 2 Name">
+        <div class="player-selector-group">
+            <select id="player2Select" onchange="toggleAddPlayerFields(2); syncSelectedPlayerId(2)">
+                <option value="">Select Player 2</option>
+                <option value="ADD_NEW">+ Add New Player</option>
+            </select>
+            <button type="button" onclick="deleteSelectedPlayer(2)">Delete Player</button>
+            <div id="player2AddPlayerForm" class="add-country-form" style="display:none;">
+                <input type="text" id="player2NewName" placeholder="New Player 2 Name" />
+                <input type="text" id="player2NewPlayerId" placeholder="Player 2 ID" />
+                <button type="button" onclick="addNewPlayer(2)">Add Player</button>
+                <button type="button" onclick="cancelAddPlayer(2)">Cancel</button>
+            </div>
+        </div>
+
         <div class="country-selector-group">
             <select id="player2Country" onchange="toggleAddCountryFields(2)">
                 <option value="">Select Player 2 Country</option>
@@ -82,7 +87,6 @@
         <button onclick="pauseTimer()" id="pauseBtn">Pause</button>
         <button onclick="resetMatch()">Reset</button>
         <button onclick="broadcastState()">Broadcast Now</button>
-        <button onclick="handleLogout()" id="logoutBtn">Logout</button>
     </div>
 
     <div class="timer-display">
@@ -91,6 +95,7 @@
 
     <div class="info">
         <p>Open <a href="viewer.html" target="_blank">Live Display</a> in another tab for read-only broadcast mode.</p>
+        <p><a href="history.html" target="_blank" rel="noopener noreferrer">Match History</a> · <a href="ranking.html" target="_blank" rel="noopener noreferrer">Player Rankings</a></p>
         <p id="status">Status: ready to broadcast.</p>
     </div>
 </div>
