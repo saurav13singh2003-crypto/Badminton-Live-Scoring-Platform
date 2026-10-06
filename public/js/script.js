@@ -157,6 +157,7 @@ const CURRENT_USER_KEY = 'badminton-current-user';
 const BASE_MATCH_LOG_KEY = 'badminton-match-log';
 const BASE_STATE_KEY = 'badminton-latest-state';
 const BASE_CUSTOM_COUNTRY_KEY = 'custom-countries';
+const BASE_PLAYERS_KEY = 'badminton-players';
 
 async function apiRequest(path, options = {}) {
     const headers = {
@@ -363,9 +364,7 @@ function populateCustomCountriesInDropdown(select, countries) {
 }
 
 async function loadPlayers() {
-    try {
-        const data = await apiRequest('/api/players');
-        const players = Array.isArray(data.players) ? data.players : [];
+    const renderPlayers = (players) => {
         const playerSelects = [
             document.getElementById('player1Select'),
             document.getElementById('player2Select')
@@ -390,12 +389,21 @@ async function loadPlayers() {
         const player2Select = document.getElementById('player2Select');
         if (player1Select) syncSelectedPlayerId(1);
         if (player2Select) syncSelectedPlayerId(2);
+    };
 
+    try {
+        const data = await apiRequest('/api/players');
+        const players = Array.isArray(data.players) ? data.players : [];
+        saveNamespaced(BASE_PLAYERS_KEY, players);
+        renderPlayers(players);
         return players;
     } catch (err) {
         console.error('Failed to load players from the database', err);
-        sendStatus(`Could not load players from the database: ${err.message}`);
-        return null;
+        const savedPlayers = loadNamespaced(BASE_PLAYERS_KEY);
+        const players = Array.isArray(savedPlayers) ? savedPlayers : [];
+        renderPlayers(players);
+        sendStatus(`Could not refresh players from the database; showing saved players from this browser. ${err.message}`);
+        return players.length ? players : null;
     }
 }
 
@@ -448,6 +456,7 @@ async function deleteSelectedPlayer(player) {
             method: 'DELETE'
         });
 
+        saveNamespaced(BASE_PLAYERS_KEY, players.filter((entry) => entry.id !== target.id));
         await loadPlayers();
         if (select) select.value = '';
         sendStatus(`Deleted player ${selectedName} from the database.`);
@@ -503,6 +512,7 @@ async function savePlayerId(player) {
 
         const payload = { name: target.name, player_id: playerId, country: target.country, flag: target.flag };
         await apiRequest(`/api/players/${target.id}`, { method: 'PUT', body: JSON.stringify(payload) });
+        saveNamespaced(BASE_PLAYERS_KEY, players.map((entry) => entry.id === target.id ? { ...entry, ...payload } : entry));
         await loadPlayers();
         if (input) input.value = playerId;
         sendStatus(`Saved Player ID ${playerId} for ${selectedName}.`);
@@ -526,6 +536,11 @@ async function addNewPlayer(player) {
             method: 'POST',
             body: JSON.stringify({ name, player_id: idInput?.value.trim() || null })
         });
+        const savedPlayers = loadNamespaced(BASE_PLAYERS_KEY);
+        saveNamespaced(BASE_PLAYERS_KEY, [
+            ...(Array.isArray(savedPlayers) ? savedPlayers.filter((entry) => entry.name.toLowerCase() !== data.player.name.toLowerCase()) : []),
+            data.player
+        ]);
         await loadPlayers();
         if (select && data.player?.name) {
             select.value = data.player.name;
