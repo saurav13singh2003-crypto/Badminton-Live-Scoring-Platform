@@ -48,6 +48,32 @@ async function apiRequest(path, options = {}) {
 
 let historyRefreshTimer = null;
 let historyChannel = null;
+let visibleHistoryRows = 10;
+
+function updateHistoryPagination(totalRows) {
+    const button = document.getElementById('historyPaginationButton');
+    if (!button) return;
+    button.hidden = totalRows <= 10;
+    if (totalRows <= 10) return;
+
+    const showingAll = visibleHistoryRows >= totalRows;
+    button.innerHTML = showingAll
+        ? 'SHOW LESS <span aria-hidden="true">&#8593;</span>'
+        : 'SHOW MORE <span aria-hidden="true">&#8595;</span>';
+}
+
+function changeVisibleHistoryRows() {
+    const body = document.getElementById('matchLogBody');
+    if (!body) return;
+    const rows = [...body.querySelectorAll('tr[data-history-row]')];
+    if (visibleHistoryRows >= rows.length) {
+        visibleHistoryRows = 10;
+    } else {
+        visibleHistoryRows += 10;
+    }
+    rows.forEach((row, index) => { row.hidden = index >= visibleHistoryRows; });
+    updateHistoryPagination(rows.length);
+}
 
 async function loadMatchLog() {
     const data = await apiRequest('/api/matches/history');
@@ -78,6 +104,7 @@ function attachHistoryListeners() {
     if (historyRefreshTimer) {
         clearInterval(historyRefreshTimer);
     }
+    document.getElementById('historyPaginationButton')?.addEventListener('click', changeVisibleHistoryRows);
     historyRefreshTimer = setInterval(refreshHistoryPage, 5000);
 }
 
@@ -89,7 +116,7 @@ function buildPlayerHistoryLink(playerName) {
     const safeName = String(playerName ?? '').trim();
     if (!safeName) return 'Player';
     const encodedName = encodeURIComponent(safeName);
-    return `<a class="player-history-link" href="player-history.html?player=${encodedName}" target="_blank" rel="noopener noreferrer">${escapeHtml(safeName)}</a>`;
+    return `<a class="player-history-link" href="player-profile.html?player=${encodedName}">${escapeHtml(safeName)}</a>`;
 }
 
 function renderPlayerCell(playerName, flagHtml) {
@@ -195,10 +222,11 @@ async function renderMatchHistory() {
 
         if (!log.length) {
             matchLogBody.innerHTML = '<tr><td colspan="7">No matches found.</td></tr>';
+            updateHistoryPagination(0);
             return;
         }
 
-        log.forEach((entry) => {
+        log.forEach((entry, index) => {
             const scoreHistory = Array.isArray(entry.gameHistory) && entry.gameHistory.length
                 ? entry.gameHistory.map((game) => `${game.score1}-${game.score2}`).join(', ')
                 : `${entry.finalScore1} - ${entry.finalScore2}`;
@@ -211,24 +239,25 @@ async function renderMatchHistory() {
             const player2Flag = resolvePlayerFlag(player2Name, player2Meta.country, entry.player2CountryFlag || player2Meta.flag);
             const player1FlagHtml = formatCountryIcon(player1Flag);
             const player2FlagHtml = formatCountryIcon(player2Flag);
-            const player1Id = entry.player1Id || player1Meta.player_id;
-            const player2Id = entry.player2Id || player2Meta.player_id;
-
             const row = document.createElement('tr');
+            row.dataset.historyRow = 'true';
+            row.hidden = index >= visibleHistoryRows;
             row.innerHTML = `
                 <td>${escapeHtml(entry.date)}</td>
-                <td>${renderPlayerCell(player1Name, player1FlagHtml)}<small> ID: ${escapeHtml(player1Id || '-')}</small></td>
+                <td>${renderPlayerCell(player1Name, player1FlagHtml)}</td>
                 <td>${escapeHtml(scoreHistory)}</td>
-                <td>${renderPlayerCell(player2Name, player2FlagHtml)}<small> ID: ${escapeHtml(player2Id || '-')}</small></td>
-                <td>${escapeHtml(entry.winner)}</td>
+                <td>${renderPlayerCell(player2Name, player2FlagHtml)}</td>
+                <td>${entry.winner ? buildPlayerHistoryLink(entry.winner) : '-'}</td>
                 <td>${escapeHtml(entry.status || 'completed')}</td>
                 <td>${formatTime(entry.durationSeconds)}</td>
             `;
             matchLogBody.appendChild(row);
         });
+        updateHistoryPagination(log.length);
     } catch (err) {
         console.error('Failed to load match history from the database', err);
         matchLogBody.innerHTML = `<tr><td colspan="7">Could not load match history: ${escapeHtml(err.message)}</td></tr>`;
+        updateHistoryPagination(0);
     }
 }
 

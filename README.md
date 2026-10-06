@@ -65,11 +65,12 @@ The app does not currently include a login or registration flow.
 
 | Page | URL | Purpose |
 | --- | --- | --- |
-| Scoreboard | `/` | Set up and score a live match |
+| Homepage | `/` | Dashboard and links to the app pages |
+| Scoreboard | `/input.html` | Set up and score a live match |
 | Viewer | `/viewer.html` | Display the current scoreboard |
 | Match history | `/history.html` | Browse completed and in progress matches |
 | Rankings | `/ranking.html` | Review player standings and records |
-| Player history | `/player-history.html` | View an individual player's match history |
+| Player profiles | `/player-profile.html?player=PLAYER_NAME` | View a player's profile and expand their match history |
 
 The scoreboard and viewer share the latest saved state through the server. Keep the Node server running while using the pages.
 

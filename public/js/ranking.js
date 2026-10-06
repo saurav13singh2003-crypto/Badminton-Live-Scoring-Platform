@@ -48,6 +48,32 @@ async function apiRequest(path, options = {}) {
 
 let rankingRefreshTimer = null;
 let rankingChannel = null;
+let visibleRankingRows = 10;
+
+function updateRankingPagination(totalRows) {
+    const button = document.getElementById('rankingPaginationButton');
+    if (!button) return;
+    button.hidden = totalRows <= 10;
+    if (totalRows <= 10) return;
+
+    const showingAll = visibleRankingRows >= totalRows;
+    button.innerHTML = showingAll
+        ? 'SHOW LESS <span aria-hidden="true">&#8593;</span>'
+        : 'SHOW MORE <span aria-hidden="true">&#8595;</span>';
+}
+
+function changeVisibleRankingRows() {
+    const body = document.getElementById('rankingBody');
+    if (!body) return;
+    const rows = [...body.querySelectorAll('tr[data-ranking-row]')];
+    if (visibleRankingRows >= rows.length) {
+        visibleRankingRows = 10;
+    } else {
+        visibleRankingRows += 10;
+    }
+    rows.forEach((row, index) => { row.hidden = index >= visibleRankingRows; });
+    updateRankingPagination(rows.length);
+}
 
 async function loadMatchLog() {
     const data = await apiRequest('/api/matches/history');
@@ -78,6 +104,7 @@ function attachRankingListeners() {
     if (rankingRefreshTimer) {
         clearInterval(rankingRefreshTimer);
     }
+    document.getElementById('rankingPaginationButton')?.addEventListener('click', changeVisibleRankingRows);
     rankingRefreshTimer = setInterval(refreshRankingPage, 5000);
 }
 
@@ -89,7 +116,7 @@ function buildPlayerHistoryLink(playerName) {
     const safeName = String(playerName ?? '').trim();
     if (!safeName) return 'Player';
     const encodedName = encodeURIComponent(safeName);
-    return `<a class="player-history-link" href="player-history.html?player=${encodedName}" target="_blank" rel="noopener noreferrer">${escapeHtml(safeName)}</a>`;
+    return `<a class="player-history-link" href="player-profile.html?player=${encodedName}">${escapeHtml(safeName)}</a>`;
 }
 
 function renderPlayerCell(playerName, flagHtml) {
@@ -275,6 +302,7 @@ async function renderRankingTable() {
         const ranking = buildRankings(completedMatches, playerCountryMap);
         if (!ranking.length) {
             rankingBody.innerHTML = '<tr><td colspan="9">No players found.</td></tr>';
+            updateRankingPagination(0);
             return;
         }
 
@@ -286,6 +314,8 @@ async function renderRankingTable() {
             const movementClass = movementValue.startsWith('🔺') ? 'movement-up' : movementValue.startsWith('🔻') ? 'movement-down' : '';
             const movementHtml = movementClass ? `<span class="${movementClass}">${movementValue}</span>` : movementValue;
             const row = document.createElement('tr');
+            row.dataset.rankingRow = 'true';
+            row.hidden = index >= visibleRankingRows;
             row.innerHTML = `
                 <td>${index + 1}</td>
                 <td>${escapeHtml(player.player_id || '-')}</td>
@@ -299,9 +329,11 @@ async function renderRankingTable() {
             `;
             rankingBody.appendChild(row);
         });
+        updateRankingPagination(ranking.length);
     } catch (err) {
         console.error('Failed to load rankings from the database', err);
         rankingBody.innerHTML = `<tr><td colspan="9">Could not load rankings: ${escapeHtml(err.message)}</td></tr>`;
+        updateRankingPagination(0);
     }
 }
 

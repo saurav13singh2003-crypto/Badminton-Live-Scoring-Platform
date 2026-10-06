@@ -1,10 +1,24 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#06101b">
     <title>Badminton Live Display</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
-<body class="viewer-page">
+<body class="viewer-page live-broadcast-page">
+
+<header class="home-header">
+    <button class="home-menu-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="pageNavigation"><span></span><span></span><span></span></button>
+    <nav class="home-nav" id="pageNavigation" aria-label="Main navigation">
+        <a href="/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>Home</a>
+        <a href="input.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l4.5-1L20 7.5 16.5 4 5 15.5 4 20Z"/></svg>Input</a>
+        <a class="active" href="viewer.html" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2.4"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4m8.4-8.4a6 6 0 0 1 0 8.4M4.9 4.9a10 10 0 0 0 0 14.2m14.2-14.2a10 10 0 0 1 0 14.2"/></svg>Live Broadcast</a>
+        <a href="history.html"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4m8-4v4M4 10h16m-11 4h2m3 0h2"/></svg>Match History</a>
+        <a href="ranking.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v4a4 4 0 0 1-8 0V4Zm0 2H4v2a4 4 0 0 0 4 4m8-6h4v2a4 4 0 0 1-4 4m-4 0v4m-4 4h8m-6-4h4v4H8z"/></svg>Rankings</a>
+    </nav>
+</header>
 
 <div class="viewer-shell">
     <div class="series-grid">
@@ -29,13 +43,12 @@
     </div>
     <div class="viewer-duration">Match Duration: <span id="matchDuration">00:00</span></div>
 
-    <div class="viewer-links">
-        <a href="history.html" target="_blank" class="viewer-link">Open Match History</a>
-        <a href="ranking.html" target="_blank" class="viewer-link">Open Match Rankings</a>
-    </div>
 </div>
 
+<footer class="home-footer"><a class="home-footer-brand" href="/">Badminton <em>Hub</em><small>Live Scoring &amp; Ranking Platform</small></a><p><span>Play</span><i>•</i><span>Compete</span><i>•</i><span>Track</span><i>•</i><span>Improve</span></p><span class="home-footer-note">Built for the love of badminton <b aria-hidden="true">♥</b></span></footer>
+
 <script src="js/viewer.js"></script>
+<script src="js/home.js"></script>
 
 </body>
 </html>

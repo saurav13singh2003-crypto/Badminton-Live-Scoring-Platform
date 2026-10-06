@@ -1,4 +1,6 @@
 let channel = null;
+let viewerPlayerRoster = [];
+let lastViewerState = null;
 const scoreTarget = 21;
 const finalPoint = 31;
 function getApiBase() {
@@ -37,6 +39,16 @@ function getNamespacedKey(baseKey) {
     return `${baseKey}-${user.email.toLowerCase()}`;
 }
 
+function loadCachedViewerPlayers() {
+    try {
+        const stored = localStorage.getItem(getNamespacedKey('badminton-players'));
+        const players = stored ? JSON.parse(stored) : [];
+        viewerPlayerRoster = Array.isArray(players) ? players : [];
+    } catch (err) {
+        viewerPlayerRoster = [];
+    }
+}
+
 async function apiRequest(path, options = {}) {
     const response = await fetch(`${API_BASE}${path}`, {
         headers: { 'Content-Type': 'application/json' },
@@ -56,10 +68,21 @@ async function loadLatestState() {
     } catch (err) { return null; }
 }
 
+async function loadViewerPlayers() {
+    try {
+        const data = await apiRequest('/api/players');
+        viewerPlayerRoster = Array.isArray(data.players) ? data.players : [];
+        if (lastViewerState) updateDisplay(lastViewerState);
+    } catch (err) {
+        // Keep cached profile photos available if the database is offline.
+    }
+}
+
 async function initViewer() {
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify({ role: 'admin', username: 'Admin' }));
+    loadCachedViewerPlayers();
     channel = createChannel();
-    const savedState = await loadLatestState();
+    const [savedState] = await Promise.all([loadLatestState(), loadViewerPlayers()]);
     if (savedState) {
         try {
             updateDisplay(typeof savedState === 'string' ? JSON.parse(savedState) : savedState);
@@ -140,13 +163,36 @@ function isFlagUrl(flag) {
     return typeof flag === 'string' && /^https?:\/\//i.test(flag);
 }
 
-function renderPlayerLabel(labelEl, text, flag, statusText) {
+function getViewerPlayerPhoto(name) {
+    const player = viewerPlayerRoster.find((entry) => entry.name?.toLocaleLowerCase() === name.toLocaleLowerCase());
+    return /^https?:\/\//i.test(player?.photo_url || '') ? player.photo_url : '';
+}
+
+function renderPlayerLabel(labelEl, text, flag, statusText, photoUrl) {
     if (!labelEl) return;
     labelEl.innerHTML = '';
 
+    const backdrop = document.createElement('span');
+    backdrop.className = 'viewer-country-backdrop';
+    if (flag) {
+        if (isFlagUrl(flag)) {
+            const flagImage = document.createElement('img');
+            flagImage.src = flag;
+            flagImage.alt = '';
+            backdrop.appendChild(flagImage);
+        } else {
+            backdrop.classList.add('is-emoji');
+            backdrop.textContent = flag;
+        }
+    }
+    labelEl.appendChild(backdrop);
+
+    const content = document.createElement('span');
+    content.className = 'player-label-content';
     const row = document.createElement('div');
     row.className = 'player-name-row';
     const nameNode = document.createElement('span');
+    nameNode.className = 'viewer-player-name';
     nameNode.textContent = text;
     row.appendChild(nameNode);
 
@@ -165,13 +211,23 @@ function renderPlayerLabel(labelEl, text, flag, statusText) {
         row.appendChild(wrapper);
     }
 
-    labelEl.appendChild(row);
+    if (photoUrl) {
+        const photo = document.createElement('img');
+        photo.className = 'viewer-player-photo';
+        photo.src = photoUrl;
+        photo.alt = `${text} portrait`;
+        photo.onerror = () => photo.classList.add('hidden');
+        row.appendChild(photo);
+    }
+
+    content.appendChild(row);
     if (statusText) {
         const status = document.createElement('span');
         status.className = `player-status ${statusText.toLowerCase().replace(/\s+/g, '-')}`;
         status.textContent = statusText;
-        labelEl.appendChild(status);
+        content.appendChild(status);
     }
+    labelEl.appendChild(content);
 }
 
 function hasWinner(scoreA, scoreB) {
@@ -221,6 +277,7 @@ function updateDisplay(state) {
     if (!state) {
         return;
     }
+    lastViewerState = state;
 
     const currentGame = state.currentGame ?? 1;
     const score1 = state.score1 ?? 0;
@@ -235,8 +292,8 @@ function updateDisplay(state) {
     const label2 = document.getElementById('rowLabel2');
     const status1 = (!state.matchOver && score1 > score2) ? getPointStatus(score1, score2, state.gameWins1) : '';
     const status2 = (!state.matchOver && score2 > score1) ? getPointStatus(score2, score1, state.gameWins2) : '';
-    renderPlayerLabel(label1, state.player1 || 'Player 1', flag1, status1);
-    renderPlayerLabel(label2, state.player2 || 'Player 2', flag2, status2);
+    renderPlayerLabel(label1, state.player1 || 'Player 1', flag1, status1, getViewerPlayerPhoto(state.player1 || 'Player 1'));
+    renderPlayerLabel(label2, state.player2 || 'Player 2', flag2, status2, getViewerPlayerPhoto(state.player2 || 'Player 2'));
 
     const durationEl = document.getElementById('matchDuration');
     if (durationEl) {
@@ -248,13 +305,13 @@ function updateDisplay(state) {
     if (label1) {
         label1.classList.toggle('serving', server === 1);
         label1.style.borderLeftColor = uniqueColor1;
-        label1.style.backgroundColor = uniqueColor1;
+        label1.style.setProperty('--country-color', uniqueColor1);
         label1.style.color = '#fff';
     }
     if (label2) {
         label2.classList.toggle('serving', server === 2);
         label2.style.borderLeftColor = uniqueColor2;
-        label2.style.backgroundColor = uniqueColor2;
+        label2.style.setProperty('--country-color', uniqueColor2);
         label2.style.color = '#fff';
     }
 

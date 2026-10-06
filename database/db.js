@@ -32,6 +32,11 @@ async function ensureTables() {
       player_id VARCHAR(100) NULL,
       country VARCHAR(80) NULL,
       flag VARCHAR(1000) NULL,
+      age SMALLINT UNSIGNED NULL,
+      height_cm DECIMAL(5,2) NULL,
+      weight_kg DECIMAL(5,2) NULL,
+      playing_hand VARCHAR(10) NULL,
+      photo_url VARCHAR(2048) NULL,
       UNIQUE KEY uq_players_name (name),
       UNIQUE KEY uq_players_player_id (player_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -105,6 +110,11 @@ async function ensureTables() {
   await pool.execute(createPlayers);
   await pool.execute(ensurePlayerIdColumn).catch(() => {});
   await pool.execute(ensurePlayerColumns).catch(() => {});
+  await pool.execute('ALTER TABLE players ADD COLUMN age SMALLINT UNSIGNED NULL').catch(() => {});
+  await pool.execute('ALTER TABLE players ADD COLUMN height_cm DECIMAL(5,2) NULL').catch(() => {});
+  await pool.execute('ALTER TABLE players ADD COLUMN weight_kg DECIMAL(5,2) NULL').catch(() => {});
+  await pool.execute('ALTER TABLE players ADD COLUMN playing_hand VARCHAR(10) NULL').catch(() => {});
+  await pool.execute('ALTER TABLE players ADD COLUMN photo_url VARCHAR(2048) NULL').catch(() => {});
   await pool.execute('ALTER TABLE players ADD UNIQUE INDEX uq_players_player_id (player_id)').catch(() => {});
   await pool.execute(createMatches);
   await pool.execute(createGames);

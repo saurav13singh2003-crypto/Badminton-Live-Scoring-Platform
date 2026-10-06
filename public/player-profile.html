@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#06101b">
+    <title>Player Profile</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="player-profile-page">
+    <header class="home-header">
+        <button class="home-menu-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="pageNavigation"><span></span><span></span><span></span></button>
+        <nav class="home-nav" id="pageNavigation" aria-label="Main navigation">
+            <a href="/"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>Home</a>
+            <a href="input.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l4.5-1L20 7.5 16.5 4 5 15.5 4 20Z"/></svg>Input</a>
+            <a href="viewer.html"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2.4"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4m8.4-8.4a6 6 0 0 1 0 8.4M4.9 4.9a10 10 0 0 0 0 14.2m14.2-14.2a10 10 0 0 1 0 14.2"/></svg>Live Broadcast</a>
+            <a href="history.html"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4m8-4v4M4 10h16m-11 4h2m3 0h2"/></svg>Match History</a>
+            <a href="ranking.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v4a4 4 0 0 1-8 0V4Zm0 2H4v2a4 4 0 0 0 4 4m8-6h4v2a4 4 0 0 1-4 4m-4 0v4m-4 4h8m-6-4h4v4H8z"/></svg>Rankings</a>
+        </nav>
+    </header>
+    <main class="player-profile-shell">
+        <section class="player-profile-hero" aria-labelledby="profileName">
+            <div class="player-profile-avatar" id="profileAvatar" aria-hidden="true">
+                <span id="profileInitials">?</span>
+                <img id="profilePhoto" class="hidden" alt="Player portrait">
+            </div>
+            <div class="player-profile-heading">
+                <p class="player-profile-eyebrow">PLAYER PROFILE</p>
+                <h1 id="profileName">Loading player...</h1>
+                <p id="profileCountry" class="player-profile-country"></p>
+            </div>
+        </section>
+
+        <section class="player-profile-stats" aria-label="Player statistics">
+            <article class="player-profile-stat"><span>Local Rank</span><strong id="profileRank">—</strong></article>
+            <article class="player-profile-stat"><span>Matches</span><strong id="profileMatches">—</strong></article>
+            <article class="player-profile-stat"><span>Wins</span><strong id="profileWins">—</strong></article>
+            <article class="player-profile-stat"><span>Losses</span><strong id="profileLosses">—</strong></article>
+            <article class="player-profile-stat"><span>Win Rate</span><strong id="profileWinRate">—</strong></article>
+        </section>
+
+        <section class="player-profile-details" aria-label="Player details">
+            <div><span>Age</span><strong id="profileAge">—</strong></div>
+            <div><span>Height</span><strong id="profileHeight">—</strong></div>
+            <div><span>Weight</span><strong id="profileWeight">—</strong></div>
+            <div><span>Playing hand</span><strong id="profileHand">—</strong></div>
+        </section>
+
+        <p id="profileStatus" class="player-profile-status" role="status">Loading profile...</p>
+
+        <div class="player-profile-history-controls">
+            <button type="button" id="playerHistoryToggle" class="player-profile-history-link" aria-expanded="false" aria-controls="playerMatchHistory" onclick="togglePlayerMatchHistory()">View Match History <span aria-hidden="true">&#8595;</span></button>
+        </div>
+        <section id="playerMatchHistory" class="player-profile-history-panel hidden" aria-label="Player match history">
+            <div class="match-log-panel">
+                <table class="match-log-table">
+                    <thead>
+                        <tr><th>Date</th><th>Opponent</th><th>Result</th><th>Game Scores</th><th>Winner</th><th>Duration</th></tr>
+                    </thead>
+                    <tbody id="playerMatchHistoryBody">
+                        <tr><td colspan="6">Loading match history...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+    <footer class="home-footer"><a class="home-footer-brand" href="/">Badminton <em>Hub</em><small>Live Scoring &amp; Ranking Platform</small></a><p><span>Play</span><i>•</i><span>Compete</span><i>•</i><span>Track</span><i>•</i><span>Improve</span></p><span class="home-footer-note">Built for the love of badminton <b aria-hidden="true">♥</b></span></footer>
+    <script src="js/player-profile.js"></script>
+    <script src="js/home.js"></script>
+</body>
+</html>

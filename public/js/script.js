@@ -14,6 +14,11 @@ let currentMatchId = null;
 let currentGameId = null;
 let player1DbId = null;
 let player2DbId = null;
+let currentPlayer1Country = '';
+let currentPlayer1CountryFlag = '';
+let currentPlayer2Country = '';
+let currentPlayer2CountryFlag = '';
+let cachedPlayerRoster = [];
 
 const maxGames = 3;
 const scoreTarget = 21;
@@ -130,6 +135,7 @@ function updateTimerDisplay() {
 
 function startTimer() {
     if (timerInterval) return; // Don't start if already running
+    document.getElementById('matchTimerDisplay')?.classList.add('is-visible');
     timerInterval = setInterval(() => {
         matchSeconds += 1;
         updateTimerDisplay();
@@ -151,6 +157,7 @@ function resetTimer() {
     stopTimer();
     matchSeconds = 0;
     updateTimerDisplay();
+    document.getElementById('matchTimerDisplay')?.classList.remove('is-visible');
 }
 
 const CURRENT_USER_KEY = 'badminton-current-user';
@@ -363,47 +370,131 @@ function populateCustomCountriesInDropdown(select, countries) {
     });
 }
 
-async function loadPlayers() {
-    const renderPlayers = (players) => {
-        const playerSelects = [
-            document.getElementById('player1Select'),
-            document.getElementById('player2Select')
-        ];
+function renderPlayerDropdowns(players) {
+    cachedPlayerRoster = Array.isArray(players) ? players : [];
+    const playerSelects = [
+        document.getElementById('player1Select'),
+        document.getElementById('player2Select')
+    ];
 
-        playerSelects.forEach((select) => {
-            if (!select) return;
-            const existingValue = select.value;
-            select.innerHTML = '<option value="">Select Player</option><option value="ADD_NEW">+ Add New Player</option>';
-            players.forEach((player) => {
-                const option = document.createElement('option');
-                option.value = player.name;
-                option.textContent = player.player_id ? `${player.name} (${player.player_id})` : player.name;
-                select.appendChild(option);
-            });
-            if (existingValue && existingValue !== 'ADD_NEW' && players.some((player) => player.name === existingValue)) {
-                select.value = existingValue;
-            }
+    playerSelects.forEach((select) => {
+        if (!select) return;
+        const existingValue = select.value;
+        select.innerHTML = '<option value="">Select Player</option><option value="ADD_NEW">+ Add New Player</option>';
+        players.forEach((player) => {
+            const option = document.createElement('option');
+            option.value = player.name;
+            option.textContent = player.player_id ? `${player.name} (${player.player_id})` : player.name;
+            select.appendChild(option);
         });
+        if (existingValue && existingValue !== 'ADD_NEW' && players.some((player) => player.name === existingValue)) {
+            select.value = existingValue;
+        }
+    });
 
-        const player1Select = document.getElementById('player1Select');
-        const player2Select = document.getElementById('player2Select');
-        if (player1Select) syncSelectedPlayerId(1);
-        if (player2Select) syncSelectedPlayerId(2);
-    };
+    const player1Select = document.getElementById('player1Select');
+    const player2Select = document.getElementById('player2Select');
+    if (player1Select) {
+        updateScoringPlayerCard(1);
+        syncSelectedPlayerId(1);
+    }
+    if (player2Select) {
+        updateScoringPlayerCard(2);
+        syncSelectedPlayerId(2);
+    }
+}
 
+function updateScoringPlayerCard(player, playerDetails = null) {
+    const select = document.getElementById(`player${player}Select`);
+    const supplied = playerDetails && typeof playerDetails === 'object' ? playerDetails : null;
+    const selectedName = (supplied?.name || (typeof playerDetails === 'string' ? playerDetails : select?.value) || '').trim();
+    const playerName = selectedName && selectedName !== 'ADD_NEW' ? selectedName : `Player ${player}`;
+    const rosterEntry = cachedPlayerRoster.find((entry) => entry.name?.toLocaleLowerCase() === playerName.toLocaleLowerCase());
+    const details = { ...(rosterEntry || {}), ...(supplied || {}), name: playerName };
+    const nameElement = document.getElementById(`name${player}`);
+    const photoElement = document.getElementById(`player${player}Photo`);
+    const backdrop = document.getElementById(`player${player}FlagBackdrop`);
+    const flagImage = backdrop?.querySelector('img');
+    const flagText = backdrop?.querySelector('span');
+
+    if (nameElement) nameElement.textContent = playerName;
+    if (photoElement) {
+        const photoUrl = /^https?:\/\//i.test(details.photo_url || '') ? details.photo_url : '';
+        photoElement.classList.toggle('hidden', !photoUrl);
+        photoElement.alt = photoUrl ? `${playerName} portrait` : '';
+        photoElement.onerror = () => photoElement.classList.add('hidden');
+        if (photoUrl) photoElement.src = photoUrl;
+        else photoElement.removeAttribute('src');
+    }
+
+    const country = details.country || (player === 1 ? currentPlayer1Country : currentPlayer2Country);
+    const flag = details.flag || resolveCountryFlag(country);
+    const flagUrl = /^https?:\/\//i.test(flag || '') ? flag : '';
+    if (flagImage) {
+        flagImage.classList.toggle('hidden', !flagUrl);
+        flagImage.onerror = () => flagImage.classList.add('hidden');
+        if (flagUrl) flagImage.src = flagUrl;
+        else flagImage.removeAttribute('src');
+    }
+    if (flagText) {
+        flagText.textContent = flag && !flagUrl ? flag : '';
+        flagText.classList.toggle('hidden', !flag || Boolean(flagUrl));
+    }
+    if (backdrop) backdrop.dataset.country = country || '';
+}
+
+async function loadPlayers() {
     try {
         const data = await apiRequest('/api/players');
-        const players = Array.isArray(data.players) ? data.players : [];
+        const savedPlayers = loadNamespaced(BASE_PLAYERS_KEY);
+        const serverPlayers = Array.isArray(data.players) ? data.players : [];
+        const playersByName = new Map();
+        // Keep locally saved names available if the server's roster is temporarily
+        // empty, then let the database copy replace any matching cached entry.
+        [...(Array.isArray(savedPlayers) ? savedPlayers : []), ...serverPlayers].forEach((player) => {
+            const name = typeof player?.name === 'string' ? player.name.trim() : '';
+            if (name) playersByName.set(name.toLocaleLowerCase(), { ...playersByName.get(name.toLocaleLowerCase()), ...player, name });
+        });
+        const players = [...playersByName.values()].sort((a, b) => a.name.localeCompare(b.name));
         saveNamespaced(BASE_PLAYERS_KEY, players);
-        renderPlayers(players);
+        renderPlayerDropdowns(players);
         return players;
     } catch (err) {
         console.error('Failed to load players from the database', err);
         const savedPlayers = loadNamespaced(BASE_PLAYERS_KEY);
         const players = Array.isArray(savedPlayers) ? savedPlayers : [];
-        renderPlayers(players);
+        renderPlayerDropdowns(players);
         sendStatus(`Could not refresh players from the database; showing saved players from this browser. ${err.message}`);
         return players.length ? players : null;
+    }
+}
+
+async function retrievePlayersFromDatabase() {
+    const button = document.getElementById('reloadPlayersBtn');
+    if (button) {
+        button.disabled = true;
+        button.textContent = 'Loading Players...';
+    }
+
+    try {
+        const data = await apiRequest('/api/players');
+        if (!Array.isArray(data?.players)) throw new Error('The server returned an invalid player list.');
+        const players = data.players
+            .filter((player) => typeof player?.name === 'string' && player.name.trim())
+            .sort((a, b) => a.name.localeCompare(b.name));
+        saveNamespaced(BASE_PLAYERS_KEY, players);
+        renderPlayerDropdowns(players);
+        sendStatus(players.length
+            ? `Loaded ${players.length} saved players from the database.`
+            : 'Connected to the database, but it contains no saved players.');
+    } catch (err) {
+        console.error('Failed to retrieve players from the database', err);
+        sendStatus(`Could not retrieve players from the database: ${err.message}`);
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = 'Reload Players from Database';
+        }
     }
 }
 
@@ -425,10 +516,15 @@ function cancelAddPlayer(player) {
     const form = document.getElementById(`player${player}AddPlayerForm`);
     const input = document.getElementById(`player${player}NewName`);
     const idInput = document.getElementById(`player${player}NewPlayerId`);
+    const profileFields = ['Country', 'Age', 'Height', 'Weight', 'Hand', 'PhotoUrl'];
     if (select) select.value = '';
     if (form) form.style.display = 'none';
     if (input) input.value = '';
     if (idInput) idInput.value = '';
+    profileFields.forEach((field) => {
+        const profileInput = document.getElementById(`player${player}New${field}`);
+        if (profileInput) profileInput.value = '';
+    });
 }
 
 async function deleteSelectedPlayer(player) {
@@ -510,7 +606,17 @@ async function savePlayerId(player) {
             throw new Error('Selected player was not found in the database.');
         }
 
-        const payload = { name: target.name, player_id: playerId, country: target.country, flag: target.flag };
+        const payload = {
+            name: target.name,
+            player_id: playerId,
+            country: target.country,
+            flag: target.flag,
+            age: target.age,
+            height_cm: target.height_cm,
+            weight_kg: target.weight_kg,
+            playing_hand: target.playing_hand,
+            photo_url: target.photo_url
+        };
         await apiRequest(`/api/players/${target.id}`, { method: 'PUT', body: JSON.stringify(payload) });
         saveNamespaced(BASE_PLAYERS_KEY, players.map((entry) => entry.id === target.id ? { ...entry, ...payload } : entry));
         await loadPlayers();
@@ -521,11 +627,88 @@ async function savePlayerId(player) {
     }
 }
 
+async function editSelectedPlayerDetails(player) {
+    const select = document.getElementById(`player${player}Select`);
+    const selectedName = select?.value?.trim();
+    if (!selectedName || selectedName === 'ADD_NEW') {
+        sendStatus('Select a saved player before editing their details.');
+        return;
+    }
+
+    try {
+        const data = await apiRequest('/api/players');
+        const players = Array.isArray(data.players) ? data.players : [];
+        const target = players.find((entry) => entry.name.toLowerCase() === selectedName.toLowerCase());
+        if (!target) throw new Error('Player not found in the database.');
+
+        document.getElementById(`player${player}EditAge`).value = target.age ?? '';
+        document.getElementById(`player${player}EditCountry`).value = target.country || '';
+        document.getElementById(`player${player}EditHeight`).value = target.height_cm ?? '';
+        document.getElementById(`player${player}EditWeight`).value = target.weight_kg ?? '';
+        document.getElementById(`player${player}EditHand`).value = target.playing_hand || '';
+        document.getElementById(`player${player}EditPhotoUrl`).value = target.photo_url || '';
+        document.getElementById(`player${player}EditPlayerForm`).style.display = 'block';
+    } catch (err) {
+        sendStatus(`Could not load player details: ${err.message || 'server request failed'}`);
+    }
+}
+
+function cancelEditPlayerDetails(player) {
+    document.getElementById(`player${player}EditPlayerForm`).style.display = 'none';
+}
+
+async function savePlayerDetails(player) {
+    const select = document.getElementById(`player${player}Select`);
+    const selectedName = select?.value?.trim();
+    if (!selectedName || selectedName === 'ADD_NEW') {
+        sendStatus('Select a saved player before saving their details.');
+        return;
+    }
+
+    try {
+        const data = await apiRequest('/api/players');
+        const players = Array.isArray(data.players) ? data.players : [];
+        const target = players.find((entry) => entry.name.toLowerCase() === selectedName.toLowerCase());
+        if (!target) throw new Error('Player not found in the database.');
+
+        const age = document.getElementById(`player${player}EditAge`).value;
+        const country = document.getElementById(`player${player}EditCountry`).value.trim();
+        const height = document.getElementById(`player${player}EditHeight`).value;
+        const weight = document.getElementById(`player${player}EditWeight`).value;
+        const hand = document.getElementById(`player${player}EditHand`).value;
+        const photoUrl = document.getElementById(`player${player}EditPhotoUrl`).value.trim();
+        const payload = {
+            name: target.name,
+            player_id: target.player_id,
+            country: country || null,
+            flag: target.flag,
+            age: age || null,
+            height_cm: height || null,
+            weight_kg: weight || null,
+            playing_hand: hand || null,
+            photo_url: photoUrl || null
+        };
+        const updated = await apiRequest(`/api/players/${target.id}`, { method: 'PUT', body: JSON.stringify(payload) });
+        saveNamespaced(BASE_PLAYERS_KEY, players.map((entry) => entry.id === target.id ? updated.player : entry));
+        await loadPlayers();
+        cancelEditPlayerDetails(player);
+        sendStatus(`Saved profile details for ${target.name}.`);
+    } catch (err) {
+        sendStatus(`Failed to save player details: ${err.message || 'server request failed'}`);
+    }
+}
+
 async function addNewPlayer(player) {
     const input = document.getElementById(`player${player}NewName`);
     const idInput = document.getElementById(`player${player}NewPlayerId`);
     const select = document.getElementById(`player${player}Select`);
     const name = input?.value.trim();
+    const country = document.getElementById(`player${player}NewCountry`)?.value.trim();
+    const age = document.getElementById(`player${player}NewAge`)?.value;
+    const height = document.getElementById(`player${player}NewHeight`)?.value;
+    const weight = document.getElementById(`player${player}NewWeight`)?.value;
+    const hand = document.getElementById(`player${player}NewHand`)?.value;
+    const photoUrl = document.getElementById(`player${player}NewPhotoUrl`)?.value.trim();
     if (!name) {
         alert('Please enter a player name.');
         return;
@@ -534,7 +717,16 @@ async function addNewPlayer(player) {
     try {
         const data = await apiRequest('/api/players', {
             method: 'POST',
-            body: JSON.stringify({ name, player_id: idInput?.value.trim() || null })
+            body: JSON.stringify({
+                name,
+                player_id: idInput?.value.trim() || null,
+                country: country || null,
+                age: age || null,
+                height_cm: height || null,
+                weight_kg: weight || null,
+                playing_hand: hand || null,
+                photo_url: photoUrl || null
+            })
         });
         const savedPlayers = loadNamespaced(BASE_PLAYERS_KEY);
         saveNamespaced(BASE_PLAYERS_KEY, [
@@ -547,6 +739,10 @@ async function addNewPlayer(player) {
         }
         if (input) input.value = '';
         if (idInput) idInput.value = '';
+        ['Country', 'Age', 'Height', 'Weight', 'Hand', 'PhotoUrl'].forEach((field) => {
+            const profileInput = document.getElementById(`player${player}New${field}`);
+            if (profileInput) profileInput.value = '';
+        });
         const form = document.getElementById(`player${player}AddPlayerForm`);
         if (form) form.style.display = 'none';
         sendStatus(`Added player ${data.player.name}.`);
@@ -667,8 +863,8 @@ async function addNewCountry(player) {
 }
 
 function applyPlayerColors(state) {
-    const country1 = state?.player1Country ?? document.getElementById('player1Country')?.value.trim();
-    const country2 = state?.player2Country ?? document.getElementById('player2Country')?.value.trim();
+    const country1 = state?.player1Country ?? currentPlayer1Country;
+    const country2 = state?.player2Country ?? currentPlayer2Country;
     const initialColor1 = getCountryColor(country1);
     const initialColor2 = getCountryColor(country2);
     const [color1, color2] = getDistinctColors(initialColor1, initialColor2);
@@ -690,7 +886,7 @@ async function init() {
     setCurrentUser({ role: 'admin', username: 'Admin' });
     document.getElementById('mainApp')?.classList.remove('hidden');
     const players = await loadPlayers();
-    await populateAllCountryDropdowns();
+    customCountries = await loadCustomCountries();
     resetMatchState(false);
     channel = createChannel();
     const latestState = await loadLatestState();
@@ -713,18 +909,13 @@ function createChannel() {
 }
 
 function getState() {
-    const player1CountrySelect = document.getElementById('player1Country');
-    const player2CountrySelect = document.getElementById('player2Country');
-    const player1Country = player1CountrySelect?.value.trim() || '';
-    const player2Country = player2CountrySelect?.value.trim() || '';
-
     return {
         player1: document.getElementById('name1').innerText,
         player2: document.getElementById('name2').innerText,
-        player1Country,
-        player1CountryFlag: resolveCountryFlag(player1Country),
-        player2Country,
-        player2CountryFlag: resolveCountryFlag(player2Country),
+        player1Country: currentPlayer1Country,
+        player1CountryFlag: currentPlayer1CountryFlag,
+        player2Country: currentPlayer2Country,
+        player2CountryFlag: currentPlayer2CountryFlag,
         score1,
         score2,
         currentGame,
@@ -746,8 +937,25 @@ function updateDisplay(state) {
         gameWins1 = state.gameWins1;
         gameWins2 = state.gameWins2;
         gameHistory = Array.isArray(state.gameHistory) ? state.gameHistory : [];
+        currentPlayer1Country = state.player1Country || '';
+        currentPlayer1CountryFlag = state.player1CountryFlag || '';
+        currentPlayer2Country = state.player2Country || '';
+        currentPlayer2CountryFlag = state.player2CountryFlag || '';
         document.getElementById('name1').innerText = state.player1 || 'Player 1';
         document.getElementById('name2').innerText = state.player2 || 'Player 2';
+        updateScoringPlayerCard(1, {
+            name: state.player1 || 'Player 1',
+            country: currentPlayer1Country,
+            flag: currentPlayer1CountryFlag
+        });
+        updateScoringPlayerCard(2, {
+            name: state.player2 || 'Player 2',
+            country: currentPlayer2Country,
+            flag: currentPlayer2CountryFlag
+        });
+    } else {
+        updateScoringPlayerCard(1);
+        updateScoringPlayerCard(2);
     }
 
     document.getElementById('score1').innerText = score1;
@@ -837,18 +1045,11 @@ async function startMatch() {
     const player2Select = document.getElementById('player2Select');
     const player1Name = player1Select?.value?.trim();
     const player2Name = player2Select?.value?.trim();
-    const player1Country = document.getElementById('player1Country')?.value.trim();
-    const player2Country = document.getElementById('player2Country')?.value.trim();
 
     if (!player1Name || !player2Name || player1Name === 'ADD_NEW' || player2Name === 'ADD_NEW') {
         sendStatus('Please select both players before starting the match.');
         return;
     }
-    if (!player1Country || !player2Country) {
-        sendStatus('Please select both countries before starting the match.');
-        return;
-    }
-
     if (timerInterval) {
         sendStatus('Timer is already running.');
         return;
@@ -863,8 +1064,22 @@ async function startMatch() {
         updateDisplay();
 
         try {
-            const p1Flag = resolveCountryFlag(player1Country);
-            const p2Flag = resolveCountryFlag(player2Country);
+            const rosterData = await apiRequest('/api/players');
+            const roster = Array.isArray(rosterData.players) ? rosterData.players : [];
+            const player1 = roster.find((entry) => entry.name.toLowerCase() === player1Name.toLowerCase());
+            const player2 = roster.find((entry) => entry.name.toLowerCase() === player2Name.toLowerCase());
+            if (!player1 || !player2) throw new Error('Could not load the selected players from the database. Reload the player list and try again.');
+
+            const player1Country = player1.country || '';
+            const player2Country = player2.country || '';
+            const p1Flag = player1.flag || resolveCountryFlag(player1Country);
+            const p2Flag = player2.flag || resolveCountryFlag(player2Country);
+            currentPlayer1Country = player1Country;
+            currentPlayer1CountryFlag = p1Flag;
+            currentPlayer2Country = player2Country;
+            currentPlayer2CountryFlag = p2Flag;
+            updateScoringPlayerCard(1, player1);
+            updateScoringPlayerCard(2, player2);
             const resp = await apiRequest('/api/matches', {
                 method: 'POST',
                 body: JSON.stringify({
@@ -899,14 +1114,6 @@ async function addPoint(player) {
     // Prevent adding points if match hasn't started (timer not running)
     if (!timerInterval) {
         sendStatus('Start the match first!');
-        return;
-    }
-
-    // Prevent adding points if both countries are not selected
-    const player1Country = document.getElementById('player1Country')?.value.trim();
-    const player2Country = document.getElementById('player2Country')?.value.trim();
-    if (!player1Country || !player2Country) {
-        sendStatus('Please select both countries before adding points.');
         return;
     }
 
@@ -954,6 +1161,7 @@ function hasWinner(scoreA, scoreB) {
 async function finishGame(winner) {
     const winnerName = document.getElementById(`name${winner}`).innerText;
     const durationSeconds = matchSeconds - currentGameStartSeconds;
+    stopTimer();
     gameHistory.push({ game: currentGame, score1, score2, winner, durationSeconds });
 
     if (winner === 1) {
@@ -966,7 +1174,6 @@ async function finishGame(winner) {
 
     if (gameWins1 === 2 || gameWins2 === 2 || currentGame === maxGames) {
         matchOver = true;
-        stopTimer();
         sendStatus(`${resultText}. ${winnerName} wins the match!`);
         // finish current game and match on server (best-effort)
         try {
@@ -1010,6 +1217,14 @@ async function finishGame(winner) {
         } catch (err) {
             console.warn('Failed to create next game on server:', err.message || err);
         }
+
+        const shouldContinue = window.confirm(`${resultText}.\n\nContinue to Game ${currentGame}?`);
+        if (shouldContinue) {
+            startTimer();
+            sendStatus(`${resultText}. Game ${currentGame} started.`);
+        } else {
+            sendStatus(`${resultText}. Match paused before Game ${currentGame}. Click Start Match when ready.`);
+        }
     }
 
     return true;
@@ -1036,6 +1251,10 @@ function resetMatchState(clearNames) {
     currentServer = null;
     matchOver = false;
     currentGameStartSeconds = 0;
+    currentPlayer1Country = '';
+    currentPlayer1CountryFlag = '';
+    currentPlayer2Country = '';
+    currentPlayer2CountryFlag = '';
     resetTimer();
 
     if (clearNames) {

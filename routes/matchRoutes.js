@@ -17,6 +17,42 @@ function cleanOptionalText(value, maxLength) {
   return cleanText(value, maxLength) || null;
 }
 
+function parseOptionalNumber(value, min, max, integer = false) {
+  if (value === undefined || value === null || value === '') return { value: null, valid: true };
+  const parsed = Number(value);
+  const valid = Number.isFinite(parsed) && parsed >= min && parsed <= max && (!integer || Number.isInteger(parsed));
+  return { value: valid ? parsed : null, valid };
+}
+
+function parsePlayerProfileFields(body) {
+  const age = parseOptionalNumber(body.age, 1, 120, true);
+  const height = parseOptionalNumber(body.height_cm, 1, 300);
+  const weight = parseOptionalNumber(body.weight_kg, 1, 500);
+  const handValue = typeof body.playing_hand === 'string' ? body.playing_hand.trim().toLowerCase() : '';
+  const handValid = !handValue || handValue === 'left' || handValue === 'right';
+  const photoInput = body.photo_url == null ? '' : String(body.photo_url).trim();
+  let photoUrl = null;
+  let photoValid = photoInput.length <= 2048;
+  if (photoInput && photoValid) {
+    try {
+      const parsed = new URL(photoInput);
+      photoValid = parsed.protocol === 'http:' || parsed.protocol === 'https:';
+      if (photoValid) photoUrl = parsed.toString();
+    } catch (err) {
+      photoValid = false;
+    }
+  }
+
+  return {
+    valid: age.valid && height.valid && weight.valid && handValid && photoValid,
+    age: age.value,
+    height_cm: height.value,
+    weight_kg: weight.value,
+    playing_hand: handValid && handValue ? handValue : null,
+    photo_url: photoUrl
+  };
+}
+
 // Compatibility endpoints (custom countries, match-log, latest-state) backed by JSON tables
 router.get('/custom-countries', async (req, res) => {
   try {
@@ -155,7 +191,7 @@ async function findOrCreatePlayer(pool, name, country, flag, playerId = null) {
 router.get('/players', async (req, res) => {
   try {
     const pool = getPool();
-    const [players] = await pool.execute('SELECT id, name, player_id, country, flag FROM players ORDER BY name');
+    const [players] = await pool.execute('SELECT id, name, player_id, country, flag, age, height_cm, weight_kg, playing_hand, photo_url FROM players ORDER BY name');
     res.json({ players });
   } catch (err) {
     console.error(err);
@@ -168,12 +204,15 @@ router.post('/players', async (req, res) => {
   const playerId = cleanOptionalText(req.body?.player_id, 100);
   const country = cleanOptionalText(req.body?.country, 80);
   const flag = cleanOptionalText(req.body?.flag, 500);
+  const profile = parsePlayerProfileFields(req.body || {});
   if (!name) return res.status(400).json({ error: 'valid player name is required' });
+  if (!profile.valid) return res.status(400).json({ error: 'age, height, weight, hand, or photo URL is invalid' });
   try {
     const [result] = await getPool().execute(
-      'INSERT INTO players (name, player_id, country, flag) VALUES (?, ?, ?, ?)', [name, playerId, country, flag]
+      'INSERT INTO players (name, player_id, country, flag, age, height_cm, weight_kg, playing_hand, photo_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, playerId, country, flag, profile.age, profile.height_cm, profile.weight_kg, profile.playing_hand, profile.photo_url]
     );
-    res.status(201).json({ player: { id: result.insertId, name, player_id: playerId, country, flag } });
+    res.status(201).json({ player: { id: result.insertId, name, player_id: playerId, country, flag, ...profile } });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'player already exists or player id is already used' });
     console.error(err);
@@ -187,13 +226,16 @@ router.put('/players/:id', async (req, res) => {
   const playerId = cleanOptionalText(req.body?.player_id, 100);
   const country = cleanOptionalText(req.body?.country, 80);
   const flag = cleanOptionalText(req.body?.flag, 500);
+  const profile = parsePlayerProfileFields(req.body || {});
   if (!Number.isInteger(id) || id < 1 || !name) return res.status(400).json({ error: 'valid player id and name are required' });
+  if (!profile.valid) return res.status(400).json({ error: 'age, height, weight, hand, or photo URL is invalid' });
   try {
     const [result] = await getPool().execute(
-      'UPDATE players SET name = ?, player_id = ?, country = ?, flag = ? WHERE id = ?', [name, playerId, country, flag, id]
+      'UPDATE players SET name = ?, player_id = ?, country = ?, flag = ?, age = ?, height_cm = ?, weight_kg = ?, playing_hand = ?, photo_url = ? WHERE id = ?',
+      [name, playerId, country, flag, profile.age, profile.height_cm, profile.weight_kg, profile.playing_hand, profile.photo_url, id]
     );
     if (!result.affectedRows) return res.status(404).json({ error: 'player not found' });
-    res.json({ player: { id, name, player_id: playerId, country, flag } });
+    res.json({ player: { id, name, player_id: playerId, country, flag, ...profile } });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'player already exists or player id is already used' });
     console.error(err);
